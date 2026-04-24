@@ -1,7 +1,7 @@
 <!-- Cache refresh: 2026-04-24T21:00:00 -->
 <div align="center">
 
-<img src="assets/logo.jpeg" width="100%" alt="SentinelAegis Logo">
+<img src="frontend/assets/logo.jpeg" width="100%" alt="SentinelAegis Logo">
 
 **Multi-agent AI consensus engine that stops BEC wire fraud before the money moves.**
 
