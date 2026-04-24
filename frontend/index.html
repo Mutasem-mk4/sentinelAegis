@@ -19,6 +19,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
 .hdr-logo{width:38px;height:38px;background:var(--grad);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#fff;box-shadow:0 0 20px var(--glow)}
 .hdr-name{font-size:1.2rem;font-weight:700;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .hdr-sub{font-size:.7rem;color:var(--t2);letter-spacing:.05em;text-transform:uppercase}
+.hdr-status{display:flex;align-items:center;gap:18px}
+.hdr-live{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--green);font-weight:600}
+.hdr-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulseDot 2s infinite}
+.hdr-latency{font-size:.72rem;color:var(--t2);font-family:var(--mono)}
+.gemini-tag{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:4px;font-size:.58rem;font-weight:600;background:rgba(66,133,244,.12);color:#4285f4;border:1px solid rgba(66,133,244,.25);letter-spacing:.03em}
+@keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(16,185,129,.4)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(16,185,129,0)}}
 
 .wrap{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:24px 28px}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px}
@@ -112,7 +118,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
 </style>
 </head>
 <body>
-<header class="hdr"><div class="hdr-brand"><div class="hdr-logo">SA</div><div><div class="hdr-name">SentinelAegis</div><div class="hdr-sub">AI-Powered BEC Fraud Detection</div></div></div></header>
+<header class="hdr"><div class="hdr-brand"><div class="hdr-logo">SA</div><div><div class="hdr-name">SentinelAegis</div><div class="hdr-sub">AI-Powered BEC Fraud Detection</div></div></div><div class="hdr-status"><div class="hdr-live"><div class="hdr-dot"></div>LIVE</div><div class="hdr-latency" id="hdrLatency">3 Gemini Agents Active</div></div></header>
 <div class="wrap">
 <div class="metrics">
   <div class="mcard"><div class="mlbl">Transactions Analyzed</div><div class="mval" id="m-count">0</div><div class="msub">Live analysis</div></div>
@@ -131,9 +137,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
   <div class="rightcol">
     <div class="panel"><div class="ptitle">Agent Analysis</div>
       <div class="agrid">
-        <div class="acard" id="a0"><div class="ahdr"><div class="aicon">📧</div><div><div class="atitle">Email Tone</div><div class="asub" id="a0s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Querying Gemini...</div></div><div class="aresult" id="a0r"></div></div>
-        <div class="acard" id="a1"><div class="ahdr"><div class="aicon">🏦</div><div><div class="atitle">IBAN Change</div><div class="asub" id="a1s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Checking history...</div></div><div class="aresult" id="a1r"></div></div>
-        <div class="acard" id="a2"><div class="ahdr"><div class="aicon">⏰</div><div><div class="atitle">Timing</div><div class="asub" id="a2s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Evaluating timing...</div></div><div class="aresult" id="a2r"></div></div>
+        <div class="acard" id="a0"><div class="ahdr"><div class="aicon">📧</div><div><div class="atitle">Email Tone <span class="gemini-tag">🤖 Gemini AI</span></div><div class="asub" id="a0s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Querying Gemini 1.5 Pro...</div></div><div class="aresult" id="a0r"></div></div>
+        <div class="acard" id="a1"><div class="ahdr"><div class="aicon">🏦</div><div><div class="atitle">IBAN Change <span class="gemini-tag">🤖 Gemini AI</span></div><div class="asub" id="a1s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Analyzing IBAN via Gemini...</div></div><div class="aresult" id="a1r"></div></div>
+        <div class="acard" id="a2"><div class="ahdr"><div class="aicon">⏰</div><div><div class="atitle">Timing <span class="gemini-tag">🤖 Gemini AI</span></div><div class="asub" id="a2s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Analyzing timing via Gemini...</div></div><div class="aresult" id="a2r"></div></div>
       </div>
     </div>
     <div class="csec" id="conSec"><div class="panel"><div class="ptitle">Consensus Decision</div><div class="cbanner" id="conBanner"><div class="cdec" id="conDec"></div><div class="cscore" id="conScore"></div><div class="cexpl" id="conExpl"></div></div></div></div>
@@ -227,6 +233,7 @@ async function runAnalysis(){
     await new Promise(r=>setTimeout(r,1500));renderAgent(ag[2],2);
     await new Promise(r=>setTimeout(r,1500));renderConsensus(d.consensus);
     await new Promise(r=>setTimeout(r,1000));renderReport(d.consensus);
+    if(d.latency_ms)$('#hdrLatency').textContent='Last analysis: '+d.latency_ms+'ms (3 Gemini calls)';
     nAnalyzed++;totalAmt+=sel.amount;if(d.consensus.decision==='HALT')nThreats++;
     $('#m-count').textContent=nAnalyzed;$('#m-amount').textContent=fmt$(totalAmt);$('#m-threats').textContent=nThreats;
     if(d.consensus.decision==='HALT'){fetch('/api/halt/'+sel.id,{method:'POST'});sel.status='halted';loadTxs()}
