@@ -2,28 +2,40 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"sentinelaegis/agents"
 	"sentinelaegis/data"
 )
 
-// In-memory transaction store.
+// ── In-memory state ─────────────────────────────────────
+
 var (
 	transactions []data.Transaction
 	txMu         sync.RWMutex
+)
+
+// ── Metrics ─────────────────────────────────────────────
+
+var (
+	analysisCount  atomic.Int64
+	totalLatencyMs atomic.Int64
+	haltCount      atomic.Int64
+	reviewCount    atomic.Int64
+	approveCount   atomic.Int64
 )
 
 func init() {
 	transactions = data.DemoTransactions()
 }
 
-// JSON response helpers
+// ── Helpers ─────────────────────────────────────────────
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -35,7 +47,8 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-// CORS middleware
+// ── Middleware ───────────────────────────────────────────
+
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -49,55 +62,57 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// ──────────────────────────────────────────────
-// Handlers
-// ──────────────────────────────────────────────
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		latency := time.Since(start)
+		log.Printf("[%s] %s %s (%s)", r.Method, r.URL.Path, r.RemoteAddr, latency.Round(time.Millisecond))
+	})
+}
+
+// ── Handlers ────────────────────────────────────────────
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	model := os.Getenv("MODEL_NAME")
 	if model == "" {
 		model = "gemini-1.5-pro"
 	}
-	writeJSON(w, http.StatusOK, map[string]string{
-		"status": "ok",
-		"model":  model,
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":         "ok",
+		"model":          model,
+		"analysis_count": analysisCount.Load(),
 	})
+}
+
+func statsHandler(w http.ResponseWriter, r *http.Request) {
+	count := analysisCount.Load()
+	var avgMs int64
+	if count > 0 {
+		avgMs = totalLatencyMs.Load() / count
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"total_analyses":   count,
+		"halt_count":       haltCount.Load(),
+		"review_count":     reviewCount.Load(),
+		"approve_count":    approveCount.Load(),
+		"avg_latency_ms":   avgMs,
+		"halt_rate_pct":    safePercent(haltCount.Load(), count),
+		"agents_per_query": 3,
+	})
+}
+
+func safePercent(part, total int64) float64 {
+	if total == 0 {
+		return 0
+	}
+	return float64(part) / float64(total) * 100
 }
 
 func transactionsHandler(w http.ResponseWriter, r *http.Request) {
 	txMu.RLock()
 	defer txMu.RUnlock()
-
-	// Return transactions without full email bodies (for list view)
-	type txSummary struct {
-		ID           string  `json:"id"`
-		Vendor       string  `json:"vendor"`
-		Amount       float64 `json:"amount"`
-		Currency     string  `json:"currency"`
-		IBAN         string  `json:"iban"`
-		EmailSubject string  `json:"email_subject"`
-		EmailSender  string  `json:"email_sender"`
-		EmailText    string  `json:"email_text"`
-		RequestedAt  string  `json:"requested_at"`
-		Status       string  `json:"status"`
-	}
-
-	summaries := make([]txSummary, len(transactions))
-	for i, tx := range transactions {
-		summaries[i] = txSummary{
-			ID:           tx.ID,
-			Vendor:       tx.Vendor,
-			Amount:       tx.Amount,
-			Currency:     tx.Currency,
-			IBAN:         tx.IBAN,
-			EmailSubject: tx.EmailSubject,
-			EmailSender:  tx.EmailSender,
-			EmailText:    tx.EmailText,
-			RequestedAt:  tx.RequestedAt,
-			Status:       tx.Status,
-		}
-	}
-	writeJSON(w, http.StatusOK, summaries)
+	writeJSON(w, http.StatusOK, transactions)
 }
 
 type analyzeRequest struct {
@@ -105,23 +120,26 @@ type analyzeRequest struct {
 }
 
 type analyzeResponse struct {
-	TransactionID string                `json:"transaction_id"`
+	TransactionID string                 `json:"transaction_id"`
 	Consensus     agents.ConsensusResult `json:"consensus"`
+	LatencyMs     int64                  `json:"latency_ms"`
 }
 
 func analyzeHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	var req analyzeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid JSON body")
 		return
 	}
 
-	// Find the transaction
 	txMu.RLock()
 	var tx *data.Transaction
 	for i := range transactions {
 		if transactions[i].ID == req.TransactionID {
-			tx = &transactions[i]
+			cp := transactions[i]
+			tx = &cp
 			break
 		}
 	}
@@ -132,9 +150,7 @@ func analyzeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run all 3 agents.
-	// Email tone runs via Gemini (takes ~2-5s).
-	// IBAN and timing are instant but we run them concurrently for the pattern.
+	// Run all 3 agents concurrently via goroutines
 	var (
 		emailResult  agents.AgentResult
 		ibanResult   agents.AgentResult
@@ -143,38 +159,39 @@ func analyzeHandler(w http.ResponseWriter, r *http.Request) {
 	)
 
 	wg.Add(3)
-
-	go func() {
-		defer wg.Done()
-		emailResult = agents.AnalyzeEmailTone(*tx)
-	}()
-
-	go func() {
-		defer wg.Done()
-		ibanResult = agents.CheckIBANChange(*tx)
-	}()
-
-	go func() {
-		defer wg.Done()
-		timingResult = agents.CheckTimingAnomaly(*tx)
-	}()
-
+	go func() { defer wg.Done(); emailResult = agents.AnalyzeEmailTone(*tx) }()
+	go func() { defer wg.Done(); ibanResult = agents.CheckIBANChange(*tx) }()
+	go func() { defer wg.Done(); timingResult = agents.CheckTimingAnomaly(*tx) }()
 	wg.Wait()
 
 	// Run consensus
 	allResults := []agents.AgentResult{emailResult, ibanResult, timingResult}
 	consensus := agents.RunConsensus(allResults)
 
-	log.Printf("Analysis: %s → %s (score: %d)", req.TransactionID, consensus.Decision, consensus.RiskScore)
+	latency := time.Since(start).Milliseconds()
+
+	// Update metrics
+	analysisCount.Add(1)
+	totalLatencyMs.Add(latency)
+	switch consensus.Decision {
+	case "HALT":
+		haltCount.Add(1)
+	case "REVIEW":
+		reviewCount.Add(1)
+	case "APPROVE":
+		approveCount.Add(1)
+	}
+
+	log.Printf("[ANALYSIS] %s → %s (score: %d, latency: %dms)", req.TransactionID, consensus.Decision, consensus.RiskScore, latency)
 
 	writeJSON(w, http.StatusOK, analyzeResponse{
 		TransactionID: req.TransactionID,
 		Consensus:     consensus,
+		LatencyMs:     latency,
 	})
 }
 
 func haltHandler(w http.ResponseWriter, r *http.Request) {
-	// Extract transaction ID from path: /api/halt/{id}
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 4 {
 		writeError(w, http.StatusBadRequest, "Missing transaction ID")
@@ -188,7 +205,7 @@ func haltHandler(w http.ResponseWriter, r *http.Request) {
 	for i := range transactions {
 		if transactions[i].ID == txID {
 			transactions[i].Status = "halted"
-			log.Printf("Transaction %s HALTED", txID)
+			log.Printf("[HALT] Transaction %s HALTED", txID)
 			writeJSON(w, http.StatusOK, map[string]string{
 				"status":         "halted",
 				"transaction_id": txID,
@@ -196,13 +213,10 @@ func haltHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	writeError(w, http.StatusNotFound, "Transaction not found")
 }
 
-// ──────────────────────────────────────────────
-// Main
-// ──────────────────────────────────────────────
+// ── Main ────────────────────────────────────────────────
 
 func main() {
 	port := os.Getenv("PORT")
@@ -210,42 +224,32 @@ func main() {
 		port = "8080"
 	}
 
-	// Startup checks
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	model := os.Getenv("MODEL_NAME")
 	if model == "" {
 		model = "gemini-1.5-pro"
 	}
 	if apiKey == "" {
-		log.Println("⚠️  GEMINI_API_KEY is not set — Email Tone Agent will use fallback mode")
+		log.Println("⚠️  GEMINI_API_KEY not set — all agents will use rule-based fallback")
 	} else {
-		log.Printf("✅ GEMINI_API_KEY is configured (model: %s)", model)
+		log.Printf("✅ GEMINI_API_KEY configured (model: %s, 3 AI agents active)", model)
 	}
 
 	mux := http.NewServeMux()
 
-	// API routes
 	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("GET /api/stats", statsHandler)
 	mux.HandleFunc("GET /api/transactions", transactionsHandler)
 	mux.HandleFunc("POST /api/analyze", analyzeHandler)
 	mux.HandleFunc("POST /api/halt/", haltHandler)
 
-	// Serve frontend static files
 	frontendDir := http.Dir("frontend")
-	fileServer := http.FileServer(frontendDir)
-	mux.Handle("GET /", fileServer)
+	mux.Handle("GET /", http.FileServer(frontendDir))
 
-	handler := corsMiddleware(mux)
+	handler := loggingMiddleware(corsMiddleware(mux))
 
-	log.Printf("🛡️ SentinelAegis starting on :%s", port)
+	log.Printf("🛡️ SentinelAegis starting on :%s (3 AI agents, consensus engine)", port)
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
