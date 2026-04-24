@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SentinelAegis — BEC Fraud Detection</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0f1e;--bg2:#111827;--card:#1a2235;--blue:#3b82f6;--red:#ef4444;--yellow:#f59e0b;--green:#10b981;--t1:#f1f5f9;--t2:#94a3b8;--border:#1e293b;--grad:linear-gradient(135deg,#3b82f6,#6366f1,#8b5cf6);--glow:rgba(59,130,246,0.25);--font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace}
+html{font-size:16px;scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.6;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 20% 20%,rgba(59,130,246,.06),transparent 60%),radial-gradient(ellipse at 80% 80%,rgba(139,92,246,.04),transparent 60%)}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:99px}
+
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--border);background:rgba(10,15,30,.92);backdrop-filter:blur(20px);position:sticky;top:0;z-index:100}
+.hdr-brand{display:flex;align-items:center;gap:12px}
+.hdr-logo{width:38px;height:38px;background:var(--grad);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#fff;box-shadow:0 0 20px var(--glow)}
+.hdr-name{font-size:1.2rem;font-weight:700;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hdr-sub{font-size:.7rem;color:var(--t2);letter-spacing:.05em;text-transform:uppercase}
+
+.wrap{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:24px 28px}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px}
+.mcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;transition:.25s}
+.mcard:hover{border-color:rgba(59,130,246,.3);transform:translateY(-2px)}
+.mlbl{font-size:.75rem;color:var(--t2);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.mval{font-size:2rem;font-weight:700}
+.msub{font-size:.7rem;color:var(--green);margin-top:4px;font-weight:500}
+
+.dash{display:grid;grid-template-columns:2fr 3fr;gap:24px}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:22px}
+.ptitle{font-size:.75rem;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.ptitle::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.txlist{display:flex;flex-direction:column;gap:8px}
+.txcard{padding:14px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:.25s}
+.txcard:hover{border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.04)}
+.txcard.active{border-color:var(--blue);box-shadow:0 0 20px var(--glow);background:rgba(59,130,246,.06)}
+.txrow{display:flex;justify-content:space-between;align-items:center}
+.txname{font-weight:600;font-size:.9rem}
+.txamt{font-weight:700;font-family:var(--mono);font-size:.85rem;color:var(--t2)}
+.txmeta{font-size:.75rem;color:var(--t2);margin-top:4px}
+
+.badge{display:inline-flex;padding:2px 10px;border-radius:99px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.badge-high{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.badge-medium{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
+.badge-low{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.25)}
+.badge-halted{background:rgba(239,68,68,.2);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+
+.emailbox{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:14px}
+.emailhdr{padding:12px 16px;border-bottom:1px solid var(--border)}
+.ef{font-size:.78rem;margin-bottom:3px}.efl{color:var(--t2);font-weight:500;margin-right:6px}.efv{color:var(--t1)}
+.ebody{padding:16px;font-size:.82rem;line-height:1.8;color:var(--t2);white-space:pre-wrap;max-height:280px;overflow-y:auto}
+.ebody mark{background:rgba(239,68,68,.2);color:var(--red);padding:1px 3px;border-radius:3px;border-bottom:2px solid var(--red);font-weight:600}
+
+.btn-go{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;padding:13px;border:none;border-radius:10px;background:var(--grad);color:#fff;font-family:var(--font);font-size:.9rem;font-weight:700;cursor:pointer;transition:.25s;box-shadow:0 4px 20px var(--glow)}
+.btn-go:hover{transform:translateY(-2px);box-shadow:0 6px 30px var(--glow)}
+.btn-go:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+.rightcol{display:flex;flex-direction:column;gap:18px}
+.agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.acard{background:var(--bg2);border:2px solid var(--border);border-radius:10px;padding:16px;min-height:190px;transition:.5s;position:relative;overflow:hidden}
+.acard::before{content:'';position:absolute;inset:0;opacity:0;transition:.5s;pointer-events:none}
+.acard.r-HIGH{border-color:var(--red);box-shadow:0 0 20px rgba(239,68,68,.3)}.acard.r-HIGH::before{opacity:1;background:linear-gradient(180deg,rgba(239,68,68,.06),transparent)}
+.acard.r-MEDIUM{border-color:var(--yellow);box-shadow:0 0 20px rgba(245,158,11,.3)}.acard.r-MEDIUM::before{opacity:1;background:linear-gradient(180deg,rgba(245,158,11,.06),transparent)}
+.acard.r-LOW{border-color:var(--green);box-shadow:0 0 20px rgba(16,185,129,.3)}.acard.r-LOW::before{opacity:1;background:linear-gradient(180deg,rgba(16,185,129,.06),transparent)}
+.acard.loading{border-color:var(--blue)}
+.ahdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.aicon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;background:rgba(255,255,255,.05);border:1px solid var(--border)}
+.atitle{font-size:.78rem;font-weight:600}.asub{font-size:.68rem;color:var(--t2)}
+
+.aloader{display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:120px}
+.acard.loading .aloader{display:flex}.acard.loading .aresult{display:none}
+.abar{width:100%;height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden}
+.afill{height:100%;background:var(--grad);border-radius:99px;animation:scan 2s ease-in-out infinite}
+.altxt{font-size:.78rem;color:var(--t2);animation:pulse 1.5s infinite}
+
+.aresult{animation:fadeUp .5s ease}
+.arisk{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.aconf{font-size:1.3rem;font-weight:700;font-family:var(--mono)}
+.aflags{list-style:none}.aflags li{font-size:.72rem;color:var(--t2);padding:2px 0 2px 12px;position:relative}.aflags li::before{content:'•';position:absolute;left:0;color:var(--blue);font-weight:bold}
+.aexpl{font-size:.72rem;color:var(--t2);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-style:italic}
+
+.csec{display:none}.csec.vis{display:block;animation:fadeUp .6s ease}
+.cbanner{border-radius:12px;padding:30px;text-align:center;transition:.5s}
+.cbanner.HALT{background:rgba(239,68,68,.08);border:2px solid var(--red);box-shadow:0 0 40px rgba(239,68,68,.35)}
+.cbanner.REVIEW{background:rgba(245,158,11,.08);border:2px solid var(--yellow)}
+.cbanner.APPROVE{background:rgba(16,185,129,.08);border:2px solid var(--green)}
+.cdec{font-size:1.4rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
+.cscore{font-size:2.8rem;font-weight:800;font-family:var(--mono);margin-bottom:10px}
+.cexpl{font-size:.85rem;color:var(--t2);max-width:650px;margin:0 auto;line-height:1.7}
+.cbanner.HALT.flash{animation:glowPulse 2s infinite}
+
+.rsec{display:none}.rsec.vis{display:block;animation:fadeUp .5s ease}
+.rmeta{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.rfl{font-size:.7rem;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.rfv{font-size:.95rem;font-weight:600}.rfv.mono{font-family:var(--mono);font-size:.8rem;color:var(--blue)}
+.rarow{display:grid;grid-template-columns:1fr auto auto 2fr;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:.82rem}
+.racts{list-style:none;margin-top:14px}.racts li{display:flex;gap:8px;padding:5px 0;font-size:.82rem;color:var(--t2)}.racts li::before{content:'✓';color:var(--green);font-weight:bold}
+
+.foot{text-align:center;padding:22px;font-size:.72rem;color:var(--t2);border-top:1px solid var(--border);margin-top:40px}
+.foot a{color:var(--blue);text-decoration:none}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scan{0%{width:5%;margin-left:0}50%{width:40%;margin-left:30%}100%{width:5%;margin-left:95%}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(239,68,68,.35)}50%{box-shadow:0 0 50px rgba(239,68,68,.35),0 0 80px rgba(239,68,68,.1)}}
+@keyframes pulseBadge{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+.badge-high.pulsing{animation:pulseBadge 1.5s infinite}
+@media(max-width:1024px){.dash{grid-template-columns:1fr}.agrid{grid-template-columns:1fr}.metrics{grid-template-columns:1fr}.rmeta{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="hdr"><div class="hdr-brand"><div class="hdr-logo">SA</div><div><div class="hdr-name">SentinelAegis</div><div class="hdr-sub">AI-Powered BEC Fraud Detection</div></div></div></header>
+<div class="wrap">
+<div class="metrics">
+  <div class="mcard"><div class="mlbl">Transactions Analyzed</div><div class="mval" id="m-count">0</div><div class="msub">Live analysis</div></div>
+  <div class="mcard"><div class="mlbl">Amount Screened</div><div class="mval" id="m-amount">$0</div><div class="msub">Total value processed</div></div>
+  <div class="mcard"><div class="mlbl">Threats Blocked</div><div class="mval" id="m-threats">0</div><div class="msub">Fraud prevented</div></div>
+</div>
+<div class="dash">
+  <div>
+    <div class="panel"><div class="ptitle">Transactions</div><div class="txlist" id="txList"></div></div>
+    <div class="panel" id="emailPanel" style="display:none;margin-top:16px">
+      <div class="ptitle">Email Under Review</div>
+      <div class="emailbox"><div class="emailhdr" id="emailMeta"></div><div class="ebody" id="emailBody"></div></div>
+      <button class="btn-go" id="goBtn" onclick="runAnalysis()" disabled>🔍 Analyze with SentinelAegis</button>
+    </div>
+  </div>
+  <div class="rightcol">
+    <div class="panel"><div class="ptitle">Agent Analysis</div>
+      <div class="agrid">
+        <div class="acard" id="a0"><div class="ahdr"><div class="aicon">📧</div><div><div class="atitle">Email Tone</div><div class="asub" id="a0s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Querying Gemini...</div></div><div class="aresult" id="a0r"></div></div>
+        <div class="acard" id="a1"><div class="ahdr"><div class="aicon">🏦</div><div><div class="atitle">IBAN Change</div><div class="asub" id="a1s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Checking history...</div></div><div class="aresult" id="a1r"></div></div>
+        <div class="acard" id="a2"><div class="ahdr"><div class="aicon">⏰</div><div><div class="atitle">Timing</div><div class="asub" id="a2s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Evaluating timing...</div></div><div class="aresult" id="a2r"></div></div>
+      </div>
+    </div>
+    <div class="csec" id="conSec"><div class="panel"><div class="ptitle">Consensus Decision</div><div class="cbanner" id="conBanner"><div class="cdec" id="conDec"></div><div class="cscore" id="conScore"></div><div class="cexpl" id="conExpl"></div></div></div></div>
+    <div class="rsec" id="rptSec"><div class="panel"><div class="ptitle">Audit Report</div><div id="rptContent"></div></div></div>
+  </div>
+</div>
+<footer class="foot">Powered by <a href="https://ai.google.dev">Google Gemini</a> · Built on <a href="https://cloud.google.com/run">Cloud Run</a> · SentinelAegis © 2026</footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
+let txs=[],sel=null,busy=false,nAnalyzed=0,totalAmt=0,nThreats=0;
+
+function fmt$(n){return n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n.toLocaleString()}
+
+function highlightBEC(text){
+  let h=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  ['urgent','immediately','ASAP','confidential','do not discuss','do NOT discuss','keep confidential','right now','trust you','today','WIRE IMMEDIATELY','cannot afford','do not route','don\'t tell','just between us','board meetings','penalty clause'].forEach(kw=>{
+    const re=new RegExp('('+kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+    h=h.replace(re,'<mark>$1</mark>');
+  });
+  return h;
+}
+
+function playAlert(){
+  try{const c=new(window.AudioContext||window.webkitAudioContext);[660,520,660].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.value=f;const t=c.currentTime+i*.12;g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.15);o.start(t);o.stop(t+.15)})}catch(e){}
+}
+
+async function loadTxs(){
+  const r=await fetch('/api/transactions');txs=await r.json();
+  $('#txList').innerHTML=txs.map(t=>`<div class="txcard" id="tx-${t.id}" onclick="selectTx('${t.id}')"><div class="txrow"><span class="txname">${t.vendor}</span><span class="txamt">${fmt$(t.amount)}</span></div><div class="txmeta">${t.email_subject} · ${t.status==='halted'?'<span class="badge badge-halted">HALTED</span>':t.requested_at}</div></div>`).join('');
+}
+
+function selectTx(id){
+  resetUI();
+  $$('.txcard').forEach(c=>c.classList.remove('active'));
+  $(`#tx-${id}`).classList.add('active');
+  sel=txs.find(t=>t.id===id);if(!sel)return;
+  $('#emailPanel').style.display='block';
+  $('#emailMeta').innerHTML=`<div class="ef"><span class="efl">From:</span><span class="efv">${sel.email_sender}</span></div><div class="ef"><span class="efl">Subject:</span><span class="efv" style="font-weight:600">${sel.email_subject}</span></div><div class="ef"><span class="efl">Time:</span><span class="efv">${sel.requested_at}</span></div>`;
+  $('#emailBody').innerHTML=highlightBEC(sel.email_text);
+  $('#goBtn').disabled=false;$('#goBtn').textContent='🔍 Analyze with SentinelAegis';
+}
+
+function resetUI(){
+  $('#conSec').classList.remove('vis');$('#rptSec').classList.remove('vis');
+  [0,1,2].forEach(i=>{const c=$(`#a${i}`);c.className='acard';$(`#a${i}s`).textContent='Standby';$(`#a${i}r`).innerHTML=''});
+}
+
+function renderAgent(a,i){
+  const c=$(`#a${i}`);c.classList.remove('loading');c.classList.add('r-'+a.risk_level);
+  $(`#a${i}s`).textContent=a.risk_level+' RISK';
+  const bc=a.risk_level==='HIGH'?'badge-high':a.risk_level==='MEDIUM'?'badge-medium':'badge-low';
+  const pc=a.risk_level==='HIGH'?' pulsing':'';
+  const flags=(a.flags||[]).slice(0,4).map(f=>`<li>${f}</li>`).join('');
+  $(`#a${i}r`).innerHTML=`<div class="arisk"><span class="badge ${bc}${pc}">${a.risk_level}</span><span class="aconf">${(a.confidence*100).toFixed(0)}%</span></div><ul class="aflags">${flags}</ul><div class="aexpl">${a.explanation}</div>`;
+}
+
+function renderConsensus(con){
+  const s=$('#conSec'),b=$('#conBanner');
+  b.className='cbanner '+con.decision;
+  const icon=con.decision==='HALT'?'🚨':con.decision==='REVIEW'?'⚡':'✅';
+  const label=con.decision==='HALT'?'TRANSACTION HALTED':con.decision==='REVIEW'?'MANUAL REVIEW REQUIRED':'TRANSACTION APPROVED';
+  const color=con.decision==='HALT'?'var(--red)':con.decision==='REVIEW'?'var(--yellow)':'var(--green)';
+  $('#conDec').textContent=icon+' '+label;$('#conDec').style.color=color;
+  $('#conScore').textContent=con.risk_score;$('#conScore').style.color=color;
+  $('#conExpl').textContent=con.explanation;
+  s.classList.add('vis');
+  if(con.decision==='HALT'){b.classList.add('flash');playAlert()}
+  s.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function renderReport(con){
+  const acts=con.decision==='HALT'?['Verify sender via phone callback','Confirm IBAN through established channel','Escalate to fraud team within 1 hour','Preserve email headers as evidence','File SAR with compliance']:con.decision==='REVIEW'?['Secondary verification of sender','Hold payment 24 hours','Contact beneficiary via known number']:['Standard processing — no action required'];
+  const rows=con.agent_breakdown.map(a=>{const bc=a.risk_level==='HIGH'?'badge-high':a.risk_level==='MEDIUM'?'badge-medium':'badge-low';return`<div class="rarow"><span>${a.agent_name.replace('_',' ')}</span><span class="badge ${bc}">${a.risk_level}</span><span style="font-family:var(--mono)">${(a.confidence*100).toFixed(0)}%</span><span style="font-size:.78rem;color:var(--t2)">${a.explanation.split('.')[0]}.</span></div>`}).join('');
+  $('#rptContent').innerHTML=`<div class="rmeta"><div><div class="rfl">Vendor</div><div class="rfv">${sel.vendor}</div></div><div><div class="rfl">Amount</div><div class="rfv">${fmt$(sel.amount)}</div></div><div><div class="rfl">IBAN</div><div class="rfv mono">${sel.iban.slice(0,12)}...</div></div></div>${rows}<ul class="racts">${acts.map(a=>`<li>${a}</li>`).join('')}</ul>`;
+  $('#rptSec').classList.add('vis');
+}
+
+async function runAnalysis(){
+  if(busy||!sel)return;busy=true;
+  const btn=$('#goBtn');btn.disabled=true;btn.textContent='⏳ Running AI Analysis...';
+  [0,1,2].forEach(i=>{$(`#a${i}`).classList.add('loading');$(`#a${i}s`).textContent='Analyzing...'});
+  try{
+    const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transaction_id:sel.id})});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();const ag=d.consensus.agent_breakdown;
+    // Sequential reveal
+    await new Promise(r=>setTimeout(r,300));renderAgent(ag[0],0);
+    await new Promise(r=>setTimeout(r,1500));renderAgent(ag[1],1);
+    await new Promise(r=>setTimeout(r,1500));renderAgent(ag[2],2);
+    await new Promise(r=>setTimeout(r,1500));renderConsensus(d.consensus);
+    await new Promise(r=>setTimeout(r,1000));renderReport(d.consensus);
+    nAnalyzed++;totalAmt+=sel.amount;if(d.consensus.decision==='HALT')nThreats++;
+    $('#m-count').textContent=nAnalyzed;$('#m-amount').textContent=fmt$(totalAmt);$('#m-threats').textContent=nThreats;
+    if(d.consensus.decision==='HALT'){fetch('/api/halt/'+sel.id,{method:'POST'});sel.status='halted';loadTxs()}
+  }catch(e){console.error(e);btn.textContent='❌ Failed — Try Again'}
+  btn.disabled=false;btn.textContent='🔍 Re-Analyze';busy=false;
+}
+
+document.addEventListener('DOMContentLoaded',()=>{loadTxs()});
+</script>
+</body>
+</html>
