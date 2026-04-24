@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ SentinelAegis
+<img src="assets/logo.png" width="400" alt="SentinelAegis Logo">
 
 **Multi-agent AI consensus engine that stops BEC wire fraud before the money moves.**
 
@@ -13,7 +13,7 @@
 
 *Three AI agents. One consensus. Zero fraud.*
 
-[🔗 Live Demo][LIVE_URL] · [🎬 Demo Video][VIDEO_URL] · [📊 Pitch Deck][DECK_URL]
+[🔗 Live Demo](https://sentinelaegis-471764064985.us-central1.run.app) · [🎬 Demo Video][VIDEO_URL] · [📊 Pitch Deck][DECK_URL]
 
 </div>
 
