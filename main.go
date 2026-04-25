@@ -1,10 +1,11 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -13,6 +14,9 @@ import (
 
 	"sentinelaegis/agents"
 	"sentinelaegis/data"
+	"sentinelaegis/gmail"
+	"sentinelaegis/sse"
+	"sentinelaegis/types"
 )
 
 // ── In-memory state ─────────────────────────────────────
@@ -30,6 +34,16 @@ var (
 	haltCount      atomic.Int64
 	reviewCount    atomic.Int64
 	approveCount   atomic.Int64
+)
+
+// ── Gmail / SSE globals ─────────────────────────────────
+
+var (
+	sseHub         *sse.Hub
+	gmailClient    *gmail.GmailClient
+	pubsubHandler  *gmail.PubSubHandler
+	monitoredEmail string
+	gmailEnabled   bool
 )
 
 func init() {
@@ -83,6 +97,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"status":         "ok",
 		"model":          model,
 		"analysis_count": analysisCount.Load(),
+		"gmail_enabled":  gmailEnabled,
 	})
 }
 
@@ -172,16 +187,7 @@ func analyzeHandler(w http.ResponseWriter, r *http.Request) {
 	latency := time.Since(start).Milliseconds()
 
 	// Update metrics
-	analysisCount.Add(1)
-	totalLatencyMs.Add(latency)
-	switch consensus.Decision {
-	case "HALT":
-		haltCount.Add(1)
-	case "REVIEW":
-		reviewCount.Add(1)
-	case "APPROVE":
-		approveCount.Add(1)
-	}
+	updateMetrics(consensus.Decision, latency)
 
 	log.Printf("[ANALYSIS] %s → %s (score: %d, latency: %dms)", req.TransactionID, consensus.Decision, consensus.RiskScore, latency)
 
@@ -216,7 +222,6 @@ func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
 	if strings.TrimSpace(req.EmailBody) == "" {
 		writeError(w, http.StatusBadRequest, "email_body is required")
 		return
@@ -226,7 +231,6 @@ func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Defaults
 	if req.Currency == "" {
 		req.Currency = "USD"
 	}
@@ -243,7 +247,6 @@ func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
 		req.TypicalEnd = "17:00"
 	}
 
-	// Build a synthetic transaction with a unique ID
 	customID := fmt.Sprintf("CUSTOM-%d", time.Now().UnixMilli())
 	tx := data.Transaction{
 		ID:           customID,
@@ -258,12 +261,10 @@ func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
 		Status:       "pending",
 	}
 
-	// Inject IBAN history and vendor window for this custom transaction
 	agents.SetCustomIBAN(customID, req.PreviousIBAN, req.IBANChangedHrsAgo)
 	agents.SetCustomWindow(customID, req.TypicalStart, req.TypicalEnd)
 	defer agents.CleanupCustom(customID)
 
-	// Run all 3 agents concurrently — same fan-out as /api/analyze
 	var (
 		emailResult  agents.AgentResult
 		ibanResult   agents.AgentResult
@@ -277,23 +278,11 @@ func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
 	go func() { defer wg.Done(); timingResult = agents.CheckTimingAnomaly(tx) }()
 	wg.Wait()
 
-	// Run consensus
 	allResults := []agents.AgentResult{emailResult, ibanResult, timingResult}
 	consensus := agents.RunConsensus(allResults)
 
 	latency := time.Since(start).Milliseconds()
-
-	// Update metrics
-	analysisCount.Add(1)
-	totalLatencyMs.Add(latency)
-	switch consensus.Decision {
-	case "HALT":
-		haltCount.Add(1)
-	case "REVIEW":
-		reviewCount.Add(1)
-	case "APPROVE":
-		approveCount.Add(1)
-	}
+	updateMetrics(consensus.Decision, latency)
 
 	log.Printf("[CUSTOM] %s → %s (score: %d, latency: %dms)", req.VendorName, consensus.Decision, consensus.RiskScore, latency)
 
@@ -329,6 +318,36 @@ func haltHandler(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotFound, "Transaction not found")
 }
 
+// ── Monitoring Status ───────────────────────────────────
+
+func statusHandler(w http.ResponseWriter, r *http.Request) {
+	clientCount := 0
+	if sseHub != nil {
+		clientCount = sseHub.ClientCount()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"monitoring":        gmailEnabled,
+		"inbox":             monitoredEmail,
+		"emails_analyzed":   analysisCount.Load(),
+		"connected_clients": clientCount,
+	})
+}
+
+// ── Shared Metrics Updater ──────────────────────────────
+
+func updateMetrics(decision string, latencyMs int64) {
+	analysisCount.Add(1)
+	totalLatencyMs.Add(latencyMs)
+	switch decision {
+	case "HALT":
+		haltCount.Add(1)
+	case "REVIEW":
+		reviewCount.Add(1)
+	case "APPROVE":
+		approveCount.Add(1)
+	}
+}
+
 // ── Main ────────────────────────────────────────────────
 
 func main() {
@@ -348,15 +367,90 @@ func main() {
 		log.Printf("✅ GEMINI_API_KEY configured (model: %s, 3 AI agents active)", model)
 	}
 
+	// ── Initialize SSE Hub ──────────────────────────────
+	sseHub = sse.NewHub()
+	go sseHub.Run()
+
+	// ── Initialize Gmail Integration (optional) ─────────
+	monitoredEmail = os.Getenv("MONITORED_EMAIL")
+	credsB64 := os.Getenv("GMAIL_CREDENTIALS_JSON")
+	projectID := os.Getenv("GCP_PROJECT_ID")
+	pubsubTopic := os.Getenv("PUBSUB_TOPIC")
+	if pubsubTopic == "" {
+		pubsubTopic = "gmail-watch"
+	}
+
+	if credsB64 != "" && monitoredEmail != "" {
+		credsJSON, err := base64.StdEncoding.DecodeString(credsB64)
+		if err != nil {
+			log.Printf("⚠️  Failed to decode GMAIL_CREDENTIALS_JSON: %v", err)
+		} else {
+			gc, err := gmail.NewGmailClient(credsJSON, monitoredEmail)
+			if err != nil {
+				log.Printf("⚠️  Gmail client init failed: %v", err)
+			} else {
+				gmailClient = gc
+				gmailEnabled = true
+
+				// Verify connected email
+				email := gc.GetConnectedEmail()
+				monitoredEmail = email
+				log.Printf("📧 Connected to Gmail: %s", email)
+
+				// Set up inbox watch
+				if projectID != "" {
+					if err := gc.WatchInbox(projectID, pubsubTopic); err != nil {
+						log.Printf("⚠️  Gmail watch setup failed: %v", err)
+					}
+				}
+
+				// Initialize Pub/Sub handler
+				analyzer := func(e types.EmailData) types.AnalysisEvent {
+					result := gmail.AnalyzeEmail(e)
+					updateMetrics(result.RiskLevel, result.LatencyMs)
+					return result
+				}
+				pubsubHandler = gmail.NewPubSubHandler(gc, analyzer)
+
+				// Bridge: read events from Pub/Sub handler → broadcast via SSE
+				go func() {
+					for event := range pubsubHandler.GetEventStream() {
+						sseHub.Broadcast(event)
+					}
+				}()
+
+				log.Printf("🛡️ Monitoring inbox: %s — LIVE", monitoredEmail)
+			}
+		}
+	} else {
+		log.Println("ℹ️  Gmail integration disabled (set GMAIL_CREDENTIALS_JSON + MONITORED_EMAIL to enable)")
+		if monitoredEmail == "" {
+			monitoredEmail = "sentinel-demo@gmail.com"
+		}
+	}
+
+	// ── Routes ──────────────────────────────────────────
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /api/stats", statsHandler)
 	mux.HandleFunc("GET /api/transactions", transactionsHandler)
+	mux.HandleFunc("GET /api/status", statusHandler)
+	mux.HandleFunc("GET /api/stream", sseHub.ServeSSE)
 	mux.HandleFunc("POST /api/analyze", analyzeHandler)
 	mux.HandleFunc("POST /api/analyze/custom", analyzeCustomHandler)
 	mux.HandleFunc("POST /api/halt/", haltHandler)
 
+	// Pub/Sub push endpoint
+	mux.HandleFunc("POST /pubsub/push", func(w http.ResponseWriter, r *http.Request) {
+		if pubsubHandler != nil {
+			pubsubHandler.HandlePush(w, r)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	// Static files
 	fs := http.FileServer(http.Dir("frontend"))
 	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -367,7 +461,7 @@ func main() {
 
 	handler := loggingMiddleware(corsMiddleware(mux))
 
-	log.Printf("🛡️ SentinelAegis starting on :%s (3 AI agents, consensus engine)", port)
+	log.Printf("🛡️ SentinelAegis starting on :%s (3 AI agents, consensus engine, SSE hub)", port)
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
