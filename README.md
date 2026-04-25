@@ -218,9 +218,9 @@ sentinelAegis/
 | Name | Role |
 |---|---|
 | Mutasem Kharma | Lead Developer — Architecture, Backend, AI Integration |
-| TBD | Frontend & Testing |
-| TBD | Research & Pitch |
-| TBD | QA & Demo Recording |
+| Moayad Darweesh | Research & Strategy |
+| Ibrahim Sabbah | Security & Risk Analysis |
+| Fathe Al-allak | Frontend Development |
 
 *Al-Zaytoonah University of Jordan · FinTech & Secure Banking Track · Build with AI 2026*
 
