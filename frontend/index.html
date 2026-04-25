@@ -121,19 +121,103 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
 @keyframes pulseBadge{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
 .badge-high.pulsing{animation:pulseBadge 1.5s infinite}
 @media(max-width:1024px){.dash{grid-template-columns:1fr}.agrid{grid-template-columns:1fr}.metrics{grid-template-columns:1fr}.rmeta{grid-template-columns:1fr}}
+
+/* ── Tab System ─────────────────────────────────────── */
+.tab-bar{display:flex;gap:4px;margin-bottom:20px}
+.tab-btn{padding:8px 18px;border:1px solid var(--border);border-radius:99px;background:var(--card);color:var(--t2);font-family:var(--font);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .2s}
+.tab-btn:hover{border-color:rgba(59,130,246,.4);color:var(--t1)}
+.tab-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 0 16px var(--glow)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── Custom Analysis Form ───────────────────────────── */
+.custom-form{display:flex;flex-direction:column;gap:16px}
+.form-row{display:flex;gap:12px;align-items:flex-start}
+.form-group{flex:1;display:flex;flex-direction:column}
+.form-group label{color:var(--t2);font-size:.72rem;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.form-group input,.form-group textarea{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--t1);padding:10px 14px;font-size:.85rem;font-family:var(--font);outline:none;transition:border-color .2s,box-shadow .2s}
+.form-group input:focus,.form-group textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.form-group textarea{resize:vertical;min-height:140px;line-height:1.6}
+.form-group input.error{border-color:var(--red);box-shadow:0 0 0 3px rgba(239,68,68,.15)}
+.form-group textarea.error{border-color:var(--red);box-shadow:0 0 0 3px rgba(239,68,68,.15)}
+.form-hint{font-size:.68rem;color:var(--red);margin-top:4px;display:none}
+.form-hint.vis{display:block}
+.input-shake{animation:shake .3s ease}
+@keyframes shake{0%{transform:translateX(0)}12%{transform:translateX(-6px)}25%{transform:translateX(0)}37%{transform:translateX(6px)}50%{transform:translateX(0)}62%{transform:translateX(-4px)}75%{transform:translateX(0)}87%{transform:translateX(4px)}100%{transform:translateX(0)}}
+
+/* ── Quick Fill Buttons ─────────────────────────────── */
+.quick-fill-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.quick-fill-btn{padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:transparent;color:var(--t2);font-family:var(--font);font-size:.72rem;font-weight:600;cursor:pointer;transition:all .2s}
+.quick-fill-btn:hover{border-color:var(--blue);color:var(--t1);background:rgba(59,130,246,.06)}
+
+/* ── Error Toast ────────────────────────────────────── */
+.toast{position:fixed;bottom:24px;right:24px;z-index:1000;background:var(--red);color:#fff;padding:12px 20px;border-radius:10px;font-family:var(--font);font-size:.82rem;font-weight:500;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.4);transform:translateY(80px);opacity:0;transition:transform .3s ease,opacity .3s ease;pointer-events:none}
+.toast.visible{transform:translateY(0);opacity:1;pointer-events:auto}
+
+/* ── Antigravity Badge ──────────────────────────────── */
+.ag-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:8px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);color:#a78bfa;font-size:.72rem;font-weight:600;text-decoration:none;transition:all .3s}
+.ag-badge:hover{background:rgba(139,92,246,.18);box-shadow:0 0 20px rgba(139,92,246,.25)}
+.ag-badge svg{width:14px;height:14px}
 </style>
 </head>
 <body>
 <header class="hdr"><div class="hdr-brand"><img src="assets/logo.jpeg" height="32" alt="SA"><div><div class="hdr-name">SentinelAegis</div><div class="hdr-sub">AI-Powered BEC Fraud Detection</div></div></div><div class="hdr-status"><div class="hdr-live"><div class="hdr-dot"></div>LIVE</div><div class="hdr-latency" id="hdrLatency">3 Gemini Agents Active</div></div></header>
 <div class="wrap">
-<div class="metrics">
+<div class="metrics" style="grid-template-columns:repeat(4,1fr)">
   <div class="mcard"><div class="mlbl">Transactions Analyzed</div><div class="mval" id="m-count">0</div><div class="msub">Live analysis</div></div>
   <div class="mcard"><div class="mlbl">Amount Screened</div><div class="mval" id="m-amount">$0</div><div class="msub">Total value processed</div></div>
   <div class="mcard"><div class="mlbl">Threats Blocked</div><div class="mval" id="m-threats">0</div><div class="msub">Fraud prevented</div></div>
+  <div class="mcard"><div class="mlbl">Avg Analysis Time</div><div class="mval" id="m-latency">—</div><div class="msub">Go + Gemini speed</div></div>
 </div>
 <div class="dash">
   <div>
-    <div class="panel"><div class="ptitle">Transactions</div><div class="txlist" id="txList"></div></div>
+    <div class="panel">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('demo')">📋 Demo Scenarios</button>
+        <button class="tab-btn" onclick="switchTab('custom')">✏️ Custom Analysis</button>
+      </div>
+
+      <!-- Demo Scenarios Tab -->
+      <div class="tab-panel active" id="tab-demo">
+        <div class="ptitle">Transactions</div>
+        <div class="txlist" id="txList"></div>
+      </div>
+
+      <!-- Custom Analysis Tab -->
+      <div class="tab-panel" id="tab-custom">
+        <div class="quick-fill-bar">
+          <span style="font-size:.72rem;color:var(--t2);line-height:2">Quick fill:</span>
+          <button class="quick-fill-btn" onclick="quickFill('bec')">🚨 BEC Attack</button>
+          <button class="quick-fill-btn" onclick="quickFill('borderline')">⚡ Borderline</button>
+          <button class="quick-fill-btn" onclick="quickFill('safe')">✅ Safe</button>
+        </div>
+        <form class="custom-form" onsubmit="return false">
+          <div class="form-group">
+            <label for="cf-email">Email Content</label>
+            <textarea id="cf-email" rows="8" placeholder="Paste the suspicious email here..."></textarea>
+            <div class="form-hint" id="cf-email-err">Email content is required</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="cf-vendor">Vendor Name</label><input type="text" id="cf-vendor" placeholder="Greenfield Solutions Ltd"></div>
+            <div class="form-group" style="max-width:140px"><label for="cf-amount">Amount</label><input type="number" id="cf-amount" placeholder="847000"></div>
+            <div class="form-group" style="max-width:80px"><label for="cf-currency">Currency</label><input type="text" id="cf-currency" value="USD"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="cf-iban-current">Current IBAN</label><input type="text" id="cf-iban-current" placeholder="GB29NWBK60161331926819"></div>
+            <div class="form-group"><label for="cf-iban-prev">Previous IBAN</label><input type="text" id="cf-iban-prev" placeholder="DE89370400440532013000"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label for="cf-iban-hours">IBAN Changed (hrs ago)</label><input type="number" id="cf-iban-hours" value="0" min="0"></div>
+            <div class="form-group"><label for="cf-time-req">Requested At</label><input type="time" id="cf-time-req" value="18:47"></div>
+            <div class="form-group"><label for="cf-time-start">Window Start</label><input type="time" id="cf-time-start" value="09:00"></div>
+            <div class="form-group"><label for="cf-time-end">Window End</label><input type="time" id="cf-time-end" value="17:00"></div>
+          </div>
+          <button type="button" id="custom-analyze-btn" class="btn-go" onclick="runCustomAnalysis()">🔍 Run Live Analysis</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Email preview (shown when demo scenario selected) -->
     <div class="panel" id="emailPanel" style="display:none;margin-top:16px">
       <div class="ptitle">Email Under Review</div>
       <div class="emailbox"><div class="emailhdr" id="emailMeta"></div><div class="ebody" id="emailBody"></div></div>
@@ -152,7 +236,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
     <div class="rsec" id="rptSec"><div class="panel"><div class="ptitle">Audit Report</div><div id="rptContent"></div></div></div>
   </div>
 </div>
-<footer class="foot">Powered by <a href="https://ai.google.dev">Google Gemini</a> · Built on <a href="https://cloud.google.com/run">Cloud Run</a> · SentinelAegis © 2026</footer>
+<footer class="foot">Powered by <a href="https://ai.google.dev">Google Gemini</a> · Built on <a href="https://cloud.google.com/run">Cloud Run</a> · <a href="https://antigravity.dev" class="ag-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Built with Antigravity IDE</a> · SentinelAegis © 2026</footer>
 </div>
 
 <script>
@@ -255,7 +339,138 @@ async function runAnalysis(){
   btn.disabled=false;btn.textContent='🔍 Re-Analyze';busy=false;
 }
 
-document.addEventListener('DOMContentLoaded',()=>{loadTxs()});
+// ── Tab System ──────────────────────────────────────────
+function switchTab(name){
+  $$('.tab-btn').forEach(b=>b.classList.remove('active'));
+  $$('.tab-panel').forEach(p=>p.classList.remove('active'));
+  const idx=name==='demo'?0:1;
+  $$('.tab-btn')[idx].classList.add('active');
+  $('#tab-'+name).classList.add('active');
+  if(name==='demo'){$('#emailPanel').style.display=sel?'block':'none'}
+  else{$('#emailPanel').style.display='none';if(!$('#cf-email').value.trim())prefillBECAttack()}
+  resetUI();
+}
+function prefillBECAttack(){quickFill('bec')}
+
+// ── Quick Fill ──────────────────────────────────────────
+const SCENARIOS={
+  bec:{email:"Dear Sarah,\n\nI need you to process an urgent wire transfer today. Our vendor Greenfield Solutions has updated their banking details. Please transfer $847,000 to their new account immediately. This is time-sensitive — please process within the hour and do not discuss this with the finance team until the transfer is complete.\n\nBest regards,\nDavid Morrison\nCEO, Morrison & Associates",vendor:"Greenfield Solutions Ltd",amount:847000,currency:"USD",iban:"GB29NWBK60161331926819",prev:"DE89370400440532013000",hours:6,time:"18:47",wstart:"09:00",wend:"17:00"},
+  borderline:{email:"Hi team, just a heads up that we updated our banking details last week. Could you process the invoice for $124,000 by end of week?\nThanks, Partner Logistics",vendor:"Partner Logistics Inc",amount:124000,currency:"USD",iban:"NL91ABNA0417164300",prev:"NL02ABNA0123456789",hours:120,time:"17:45",wstart:"09:00",wend:"17:30"},
+  safe:{email:"Hi, please find attached invoice #INV-2847 for $32,400 for cloud hosting services this month. Banking details remain unchanged.\nThank you, CloudVault Hosting",vendor:"CloudVault Hosting",amount:32400,currency:"USD",iban:"DE89370400440532013000",prev:"DE89370400440532013000",hours:0,time:"10:15",wstart:"09:00",wend:"17:00"}
+};
+function quickFill(type){
+  const s=SCENARIOS[type];if(!s)return;
+  $('#cf-email').value=s.email;
+  $('#cf-vendor').value=s.vendor;
+  $('#cf-amount').value=s.amount;
+  $('#cf-currency').value=s.currency;
+  $('#cf-iban-current').value=s.iban;
+  $('#cf-iban-prev').value=s.prev;
+  $('#cf-iban-hours').value=s.hours;
+  $('#cf-time-req').value=s.time;
+  $('#cf-time-start').value=s.wstart;
+  $('#cf-time-end').value=s.wend;
+  // Clear any error states
+  $('#cf-email').classList.remove('error','input-shake');
+  $('#cf-amount').classList.remove('error');
+  $('#cf-email-err').classList.remove('vis');
+}
+
+// ── Form Validation ─────────────────────────────────────
+function validateCustomForm(){
+  $('#cf-email').classList.remove('error','input-shake');
+  $('#cf-amount').classList.remove('error');
+  $('#cf-email-err').classList.remove('vis');
+  if(!$('#cf-email').value.trim()){
+    $('#cf-email').classList.add('error','input-shake');
+    $('#cf-email-err').classList.add('vis');
+    showToast('Email content is required');
+    setTimeout(()=>$('#cf-email').classList.remove('input-shake'),300);
+    return false;
+  }
+  if(parseFloat($('#cf-amount').value)<=0||!$('#cf-amount').value){
+    $('#cf-amount').classList.add('error');
+    showToast('Amount must be greater than 0');
+    return false;
+  }
+  return true;
+}
+
+// ── Custom Analysis ─────────────────────────────────────
+async function runCustomAnalysis(){
+  if(busy)return;
+  if(!validateCustomForm())return;
+  busy=true;
+  const btn=$('#custom-analyze-btn');
+  btn.disabled=true;btn.textContent='🔍 Analyzing...';
+  resetUI();
+  [0,1,2].forEach(i=>{$(`#a${i}`).classList.add('loading');$(`#a${i}s`).textContent='Analyzing...'});
+  const body={
+    email_body:$('#cf-email').value,
+    vendor_name:$('#cf-vendor').value||'Unknown Vendor',
+    amount:parseFloat($('#cf-amount').value)||0,
+    currency:$('#cf-currency').value||'USD',
+    current_iban:$('#cf-iban-current').value,
+    previous_iban:$('#cf-iban-prev').value,
+    iban_changed_hours_ago:parseInt($('#cf-iban-hours').value)||0,
+    requested_at:$('#cf-time-req').value||'12:00',
+    typical_window_start:$('#cf-time-start').value||'09:00',
+    typical_window_end:$('#cf-time-end').value||'17:00'
+  };
+  try{
+    const r=await fetch('/api/analyze/custom',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'HTTP '+r.status)}
+    const d=await r.json();const ag=d.consensus.agent_breakdown;
+    await new Promise(r=>setTimeout(r,300));renderAgent(ag[0],0);
+    await new Promise(r=>setTimeout(r,1500));renderAgent(ag[1],1);
+    await new Promise(r=>setTimeout(r,1500));renderAgent(ag[2],2);
+    await new Promise(r=>setTimeout(r,1500));
+    $('#rawLog').textContent=JSON.stringify(d,null,2);
+    renderConsensus(d.consensus);
+    // Custom report (no global sel, use form values)
+    await new Promise(r=>setTimeout(r,1000));
+    const csel={vendor:body.vendor_name,amount:body.amount,iban:body.current_iban||'N/A'};
+    const oldSel=sel;sel=csel;renderReport(d.consensus);sel=oldSel;
+    if(d.latency_ms)$('#hdrLatency').textContent='Last analysis: '+d.latency_ms+'ms (3 Gemini calls)';
+    pollStats();
+  }catch(e){console.error(e);showToast('Analysis failed: '+e.message)}
+  btn.disabled=false;btn.textContent='🔍 Run Live Analysis';busy=false;
+}
+
+// ── Toast ───────────────────────────────────────────────
+let toastTimer=null;
+function showToast(msg){
+  const t=$('#toast');t.textContent=msg;t.classList.add('visible');
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('visible'),5000);
+}
+
+// ── Live Metrics Polling ────────────────────────────────
+function animateVal(el,target,suffix){
+  const start=parseInt(el.textContent)||0;
+  if(start===target){if(suffix)el.textContent=target+suffix;return}
+  const dur=600,steps=30,inc=(target-start)/steps;
+  let cur=start,step=0;
+  const iv=setInterval(()=>{step++;cur+=inc;
+    if(step>=steps){cur=target;clearInterval(iv)}
+    el.textContent=Math.round(cur)+(suffix||'');
+  },dur/steps);
+}
+async function pollStats(){
+  try{
+    const r=await fetch('/api/stats');const s=await r.json();
+    animateVal($('#m-count'),s.total_analyses||0,'');
+    animateVal($('#m-threats'),s.halt_count||0,'');
+    const avg=s.avg_latency_ms||0;
+    if(avg>0)animateVal($('#m-latency'),avg,'ms');
+    const est=(s.total_analyses||0)*156000;
+    $('#m-amount').textContent=fmt$(est);
+  }catch(e){}
+}
+function startMetricsPolling(){pollStats();setInterval(pollStats,30000)}
+
+document.addEventListener('DOMContentLoaded',()=>{loadTxs();startMetricsPolling()});
 </script>
+<div class="toast" id="toast"></div>
 </body>
 </html>

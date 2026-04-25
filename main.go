@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -191,6 +192,118 @@ func analyzeHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ── Custom Analysis ─────────────────────────────────────
+
+type customAnalyzeRequest struct {
+	EmailBody         string  `json:"email_body"`
+	VendorName        string  `json:"vendor_name"`
+	Amount            float64 `json:"amount"`
+	Currency          string  `json:"currency"`
+	CurrentIBAN       string  `json:"current_iban"`
+	PreviousIBAN      string  `json:"previous_iban"`
+	IBANChangedHrsAgo int     `json:"iban_changed_hours_ago"`
+	RequestedAt       string  `json:"requested_at"`
+	TypicalStart      string  `json:"typical_window_start"`
+	TypicalEnd        string  `json:"typical_window_end"`
+}
+
+func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	var req customAnalyzeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
+
+	// Validate required fields
+	if strings.TrimSpace(req.EmailBody) == "" {
+		writeError(w, http.StatusBadRequest, "email_body is required")
+		return
+	}
+	if req.Amount <= 0 {
+		writeError(w, http.StatusBadRequest, "amount must be greater than 0")
+		return
+	}
+
+	// Defaults
+	if req.Currency == "" {
+		req.Currency = "USD"
+	}
+	if req.VendorName == "" {
+		req.VendorName = "Unknown Vendor"
+	}
+	if req.RequestedAt == "" {
+		req.RequestedAt = time.Now().Format("15:04")
+	}
+	if req.TypicalStart == "" {
+		req.TypicalStart = "09:00"
+	}
+	if req.TypicalEnd == "" {
+		req.TypicalEnd = "17:00"
+	}
+
+	// Build a synthetic transaction with a unique ID
+	customID := fmt.Sprintf("CUSTOM-%d", time.Now().UnixMilli())
+	tx := data.Transaction{
+		ID:           customID,
+		Vendor:       req.VendorName,
+		Amount:       req.Amount,
+		Currency:     req.Currency,
+		IBAN:         req.CurrentIBAN,
+		EmailSubject: "(Custom Analysis)",
+		EmailSender:  "(user-provided)",
+		EmailText:    req.EmailBody,
+		RequestedAt:  req.RequestedAt,
+		Status:       "pending",
+	}
+
+	// Inject IBAN history and vendor window for this custom transaction
+	agents.SetCustomIBAN(customID, req.PreviousIBAN, req.IBANChangedHrsAgo)
+	agents.SetCustomWindow(customID, req.TypicalStart, req.TypicalEnd)
+	defer agents.CleanupCustom(customID)
+
+	// Run all 3 agents concurrently — same fan-out as /api/analyze
+	var (
+		emailResult  agents.AgentResult
+		ibanResult   agents.AgentResult
+		timingResult agents.AgentResult
+		wg           sync.WaitGroup
+	)
+
+	wg.Add(3)
+	go func() { defer wg.Done(); emailResult = agents.AnalyzeEmailTone(tx) }()
+	go func() { defer wg.Done(); ibanResult = agents.CheckIBANChange(tx) }()
+	go func() { defer wg.Done(); timingResult = agents.CheckTimingAnomaly(tx) }()
+	wg.Wait()
+
+	// Run consensus
+	allResults := []agents.AgentResult{emailResult, ibanResult, timingResult}
+	consensus := agents.RunConsensus(allResults)
+
+	latency := time.Since(start).Milliseconds()
+
+	// Update metrics
+	analysisCount.Add(1)
+	totalLatencyMs.Add(latency)
+	switch consensus.Decision {
+	case "HALT":
+		haltCount.Add(1)
+	case "REVIEW":
+		reviewCount.Add(1)
+	case "APPROVE":
+		approveCount.Add(1)
+	}
+
+	log.Printf("[CUSTOM] %s → %s (score: %d, latency: %dms)", req.VendorName, consensus.Decision, consensus.RiskScore, latency)
+
+	writeJSON(w, http.StatusOK, analyzeResponse{
+		TransactionID: customID,
+		Consensus:     consensus,
+		LatencyMs:     latency,
+	})
+}
+
 func haltHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 4 {
@@ -241,6 +354,7 @@ func main() {
 	mux.HandleFunc("GET /api/stats", statsHandler)
 	mux.HandleFunc("GET /api/transactions", transactionsHandler)
 	mux.HandleFunc("POST /api/analyze", analyzeHandler)
+	mux.HandleFunc("POST /api/analyze/custom", analyzeCustomHandler)
 	mux.HandleFunc("POST /api/halt/", haltHandler)
 
 	fs := http.FileServer(http.Dir("frontend"))

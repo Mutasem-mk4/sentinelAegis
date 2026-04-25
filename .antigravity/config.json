@@ -1,0 +1,12 @@
+{
+  "project": "SentinelAegis",
+  "track": "FinTech & Secure Banking",
+  "agents_used": [
+    "email-tone-analyzer",
+    "iban-change-detector",
+    "timing-anomaly-detector",
+    "consensus-engine"
+  ],
+  "gemini_model": "gemini-1.5-pro",
+  "built_with": "Antigravity IDE"
+}
