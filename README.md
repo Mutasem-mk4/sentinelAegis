@@ -218,7 +218,7 @@ sentinelAegis/
 | Name | Role |
 |---|---|
 | Mutasem Kharma | Lead Developer — Architecture, Backend, AI Integration |
-| Moayad Darweesh | Research & Strategy |
+| Moayad Darwish | Research & Strategy |
 | Ibrahim Sabbah | Security & Risk Analysis |
 | Fathe Al-allak | Frontend Development |
 
