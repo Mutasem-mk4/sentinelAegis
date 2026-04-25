@@ -1,476 +1,386 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SentinelAegis — BEC Fraud Detection</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0a0f1e;--bg2:#111827;--card:#1a2235;--blue:#3b82f6;--red:#ef4444;--yellow:#f59e0b;--green:#10b981;--t1:#f1f5f9;--t2:#94a3b8;--border:#1e293b;--grad:linear-gradient(135deg,#3b82f6,#6366f1,#8b5cf6);--glow:rgba(59,130,246,0.25);--font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace}
-html{font-size:16px;scroll-behavior:smooth}
-body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.6;min-height:100vh}
-body::before{content:'';position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 20% 20%,rgba(59,130,246,.06),transparent 60%),radial-gradient(ellipse at 80% 80%,rgba(139,92,246,.04),transparent 60%)}
-::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:99px}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>SentinelAegis SOC — Real-time Monitoring</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        :root{
+            --bg:#070a13;--bg-card:#0f172a;--bg-alt:#1e293b;
+            --blue:#3b82f6;--red:#ef4444;--yellow:#f59e0b;--green:#10b981;
+            --t1:#f1f5f9;--t2:#94a3b8;--border:#1e293b;
+            --grad:linear-gradient(135deg,#3b82f6,#6366f1,#8b5cf6);
+            --glow:rgba(59,130,246,0.25);
+            --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+        }
+        body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.6;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+        
+        /* ── Header ── */
+        .hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:rgba(15,23,42,.8);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);z-index:100}
+        .hdr-brand{display:flex;align-items:center;gap:12px}
+        .hdr-logo{color:var(--blue);width:32px;height:32px}
+        .hdr-name{font-size:1.2rem;font-weight:800;letter-spacing:-0.02em}
+        .hdr-live{display:flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;background:rgba(16,185,129,.1);color:var(--green);padding:4px 10px;border-radius:99px;border:1px solid rgba(16,185,129,.2)}
+        .hdr-dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+        .hdr-mon{font-size:.75rem;color:var(--t2);display:flex;align-items:center;gap:6px}
 
-.hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-bottom:1px solid var(--border);background:rgba(10,15,30,.92);backdrop-filter:blur(20px);position:sticky;top:0;z-index:100}
-.hdr-brand{display:flex;align-items:center;gap:12px}
-.hdr-logo{width:38px;height:38px;background:var(--grad);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#fff;box-shadow:0 0 20px var(--glow)}
-.hdr-name{font-size:1.2rem;font-weight:700;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.hdr-sub{font-size:.7rem;color:var(--t2);letter-spacing:.05em;text-transform:uppercase}
-.hdr-status{display:flex;align-items:center;gap:18px}
-.hdr-live{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--green);font-weight:600}
-.hdr-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulseDot 2s infinite}
-.hdr-latency{font-size:.72rem;color:var(--t2);font-family:var(--mono)}
-.gemini-tag{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:4px;font-size:.58rem;font-weight:600;background:rgba(66,133,244,.12);color:#4285f4;border:1px solid rgba(66,133,244,.25);letter-spacing:.03em}
-@keyframes pulseDot{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(16,185,129,.4)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(16,185,129,0)}}
+        /* ── Main Layout ── */
+        .main{flex:1;display:grid;grid-template-columns:380px 1fr;gap:1px;background:var(--border);overflow:hidden}
+        .panel{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+        .panel-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+        .panel-title{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t2)}
+        .panel-scroll{flex:1;overflow-y:auto;padding:16px}
+        
+        /* ── Metrics Bar ── */
+        .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 24px;background:var(--bg)}
+        .mcard{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 20px;transition:.2s}
+        .mlbl{font-size:.65rem;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .mval{font-size:1.6rem;font-weight:800;font-family:var(--mono)}
 
-.wrap{position:relative;z-index:1;max-width:100%;margin:0 auto;padding:24px 28px}
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px}
-.mcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;transition:.25s}
-.mcard:hover{border-color:rgba(59,130,246,.3);transform:translateY(-2px)}
-.mlbl{font-size:.75rem;color:var(--t2);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
-.mval{font-size:2rem;font-weight:700}
-.msub{font-size:.7rem;color:var(--green);margin-top:4px;font-weight:500}
+        /* ── Email Feed ── */
+        .feed-list{display:flex;flex-direction:column;gap:10px}
+        .ecard{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+        .ecard:hover{border-color:var(--blue);background:rgba(59,130,246,.04)}
+        .ecard.active{border-color:var(--blue);box-shadow:0 0 20px var(--glow);background:rgba(59,130,246,.08)}
+        .ecard-status{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--t2)}
+        .ecard.analyzing .ecard-status{background:var(--blue);animation:scanY 2s infinite}
+        .ecard.halt .ecard-status{background:var(--red)}
+        .ecard.review .ecard-status{background:var(--yellow)}
+        .ecard.approve .ecard-status{background:var(--green)}
+        .ecard-from{font-size:.85rem;font-weight:700;margin-bottom:2px;display:flex;justify-content:space-between}
+        .ecard-sub{font-size:.78rem;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ecard-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:.7rem;font-weight:600;color:var(--t2)}
+        
+        /* ── Analysis Panel ── */
+        .empty-state{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--t2);gap:16px}
+        .empty-icon{width:64px;height:64px;opacity:.2}
+        
+        .analysis-view{padding:24px;animation:fadeIn .4s ease}
+        .a-hdr{margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+        .a-vendor{font-size:1.4rem;font-weight:800;margin-bottom:4px}
+        .a-meta{display:flex;gap:20px;font-size:.8rem;color:var(--t2)}
+        .a-body{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;font-size:.85rem;line-height:1.6;color:var(--t2);margin:20px 0;max-height:140px;overflow-y:auto;white-space:pre-wrap}
+        
+        .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+        .acard{background:var(--bg-card);border:2px solid var(--border);border-radius:12px;padding:18px;min-height:200px;transition:.5s;opacity:0;transform:translateY(10px)}
+        .acard.show{opacity:1;transform:translateY(0)}
+        .acard.r-HIGH{border-color:var(--red);box-shadow:0 0 20px rgba(239,68,68,.15)}
+        .acard.r-MEDIUM{border-color:var(--yellow)}
+        .acard.r-LOW{border-color:var(--green)}
+        .ahdr{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+        .aicon{font-size:1.2rem}
+        .atitle{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+        .arisk{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:800;margin-top:4px}
+        .aexpl{font-size:.72rem;color:var(--t2);margin-top:12px;line-height:1.5;font-style:italic}
+        .aflags{list-style:none;margin-top:10px;font-size:.7rem;color:var(--t2)}
+        .aflags li{padding:2px 0 2px 14px;position:relative}
+        .aflags li::before{content:'•';position:absolute;left:0;color:var(--blue)}
 
-.dash{display:grid;grid-template-columns:2fr 3fr;gap:24px}
-.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:22px}
-.ptitle{font-size:.75rem;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px;display:flex;align-items:center;gap:10px}
-.ptitle::after{content:'';flex:1;height:1px;background:var(--border)}
+        .con-banner{border-radius:12px;padding:24px;display:flex;align-items:center;gap:24px;margin-top:20px;opacity:0;transform:scale(.95);transition:.5s}
+        .con-banner.show{opacity:1;transform:scale(1)}
+        .con-banner.HALT{background:rgba(239,68,68,.08);border:2px solid var(--red);box-shadow:0 0 40px rgba(239,68,68,.2)}
+        .con-banner.REVIEW{background:rgba(245,158,11,.08);border:2px solid var(--yellow)}
+        .con-banner.APPROVE{background:rgba(16,185,129,.08);border:2px solid var(--green)}
+        .con-info{flex:1}
+        .con-dec{font-size:1.4rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .con-expl{font-size:.85rem;color:var(--t2)}
+        .con-score{font-family:var(--mono);font-size:2.8rem;font-weight:900}
 
-.txlist{display:flex;flex-direction:column;gap:8px}
-.txcard{padding:14px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:.25s}
-.txcard:hover{border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.04)}
-.txcard.active{border-color:var(--blue);box-shadow:0 0 20px var(--glow);background:rgba(59,130,246,.06)}
-.txrow{display:flex;justify-content:space-between;align-items:center}
-.txname{font-weight:600;font-size:.9rem}
-.txamt{font-weight:700;font-family:var(--mono);font-size:.85rem;color:var(--t2)}
-.txmeta{font-size:.75rem;color:var(--t2);margin-top:4px}
+        /* ── Buttons & UI ── */
+        .btn-demo{width:100%;margin-top:auto;padding:12px;background:var(--bg-alt);border:1px solid var(--border);color:var(--t1);border-radius:8px;font-weight:700;font-size:.75rem;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px}
+        .btn-demo:hover{background:var(--border)}
+        
+        .badge-live{background:var(--red);color:#fff;font-size:.6rem;padding:1px 4px;border-radius:3px;margin-left:6px;vertical-align:middle}
 
-.badge{display:inline-flex;padding:2px 10px;border-radius:99px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
-.badge-high{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.25)}
-.badge-medium{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
-.badge-low{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.25)}
-.badge-halted{background:rgba(239,68,68,.2);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+        /* ── Animations ── */
+        @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.2)}}
+        @keyframes scanY{0%{top:0;height:0}50%{top:0;height:100%}100%{top:100%;height:0}}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes flashRed{0%,100%{background:transparent}50%{background:rgba(239,68,68,.15)}}
+        .flash-red{animation:flashRed .4s 2}
 
-.emailbox{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:14px}
-.emailhdr{padding:12px 16px;border-bottom:1px solid var(--border)}
-.ef{font-size:.78rem;margin-bottom:3px}.efl{color:var(--t2);font-weight:500;margin-right:6px}.efv{color:var(--t1)}
-.ebody{padding:16px;font-size:.82rem;line-height:1.8;color:var(--t2);white-space:pre-wrap;max-height:280px;overflow-y:auto}
-.ebody mark{background:rgba(239,68,68,.2);color:var(--red);padding:1px 3px;border-radius:3px;border-bottom:2px solid var(--red);font-weight:600}
-
-.btn-go{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;padding:13px;border:none;border-radius:10px;background:var(--grad);color:#fff;font-family:var(--font);font-size:.9rem;font-weight:700;cursor:pointer;transition:.25s;box-shadow:0 4px 20px var(--glow)}
-.btn-go:hover{transform:translateY(-2px);box-shadow:0 6px 30px var(--glow)}
-.btn-go:disabled{opacity:.5;cursor:not-allowed;transform:none}
-
-.rightcol{display:flex;flex-direction:column;gap:18px}
-.agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.acard{background:var(--bg2);border:2px solid var(--border);border-radius:10px;padding:16px;min-height:190px;transition:.5s;position:relative;overflow:hidden}
-.acard::before{content:'';position:absolute;inset:0;opacity:0;transition:.5s;pointer-events:none}
-.acard.r-HIGH{border-color:var(--red);box-shadow:0 0 20px rgba(239,68,68,.3)}.acard.r-HIGH::before{opacity:1;background:linear-gradient(180deg,rgba(239,68,68,.06),transparent)}
-.acard.r-MEDIUM{border-color:var(--yellow);box-shadow:0 0 20px rgba(245,158,11,.3)}.acard.r-MEDIUM::before{opacity:1;background:linear-gradient(180deg,rgba(245,158,11,.06),transparent)}
-.acard.r-LOW{border-color:var(--green);box-shadow:0 0 20px rgba(16,185,129,.3)}.acard.r-LOW::before{opacity:1;background:linear-gradient(180deg,rgba(16,185,129,.06),transparent)}
-.acard.loading{border-color:var(--blue)}
-.ahdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.aicon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.9rem;background:rgba(255,255,255,.05);border:1px solid var(--border)}
-.atitle{font-size:.78rem;font-weight:600}.asub{font-size:.68rem;color:var(--t2)}
-
-.aloader{display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:120px}
-.acard.loading .aloader{display:flex}.acard.loading .aresult{display:none}
-.abar{width:100%;height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden}
-.afill{height:100%;background:var(--grad);border-radius:99px;animation:scan 2s ease-in-out infinite}
-.altxt{font-size:.78rem;color:var(--t2);animation:pulse 1.5s infinite}
-
-.aresult{animation:fadeUp .5s ease}
-.arisk{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.aconf{font-size:1.3rem;font-weight:700;font-family:var(--mono)}
-.aflags{list-style:none}.aflags li{font-size:.72rem;color:var(--t2);padding:2px 0 2px 12px;position:relative}.aflags li::before{content:'•';position:absolute;left:0;color:var(--blue);font-weight:bold}
-.aexpl{font-size:.72rem;color:var(--t2);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-style:italic}
-
-.csec{display:none}.csec.vis{display:block;animation:fadeUp .6s ease}
-.cbanner{border-radius:12px;padding:30px;text-align:center;transition:.5s}
-.cbanner.HALT{background:rgba(239,68,68,.08);border:2px solid var(--red);box-shadow:0 0 40px rgba(239,68,68,.35)}
-.cbanner.REVIEW{background:rgba(245,158,11,.08);border:2px solid var(--yellow)}
-.cbanner.APPROVE{background:rgba(16,185,129,.08);border:2px solid var(--green)}
-.cdec{font-size:1.4rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}
-.cscore{font-size:2.8rem;font-weight:800;font-family:var(--mono);margin-bottom:10px}
-.cexpl{font-size:.85rem;color:var(--t2);max-width:650px;margin:0 auto;line-height:1.7}
-.cbanner.HALT.flash{animation:glowPulse 2s infinite}
-
-.rawlog{margin-top:20px;border:1px solid var(--border);border-radius:8px;background:rgba(10,15,30,0.5);overflow:hidden;transition:max-height 0.4s ease;max-height:36px}
-.rawlog.open{max-height:600px}
-.rawlog-hdr{padding:8px 16px;font-size:0.75rem;font-weight:700;color:var(--blue);cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:rgba(59,130,246,0.08);letter-spacing:0.05em;text-transform:uppercase}
-.rawlog-body{padding:16px;font-family:var(--mono);font-size:0.75rem;color:#a5b4fc;max-height:400px;overflow-y:auto;white-space:pre-wrap;margin:0;border-top:1px solid var(--border);text-align:left}
-
-.rsec{display:none}.rsec.vis{display:block;animation:fadeUp .5s ease}
-.rmeta{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
-.rfl{font-size:.7rem;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
-.rfv{font-size:.95rem;font-weight:600}.rfv.mono{font-family:var(--mono);font-size:.8rem;color:var(--blue)}
-.rarow{display:grid;grid-template-columns:1fr auto auto 2fr;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:.82rem}
-.racts{list-style:none;margin-top:14px}.racts li{display:flex;gap:8px;padding:5px 0;font-size:.82rem;color:var(--t2)}.racts li::before{content:'✓';color:var(--green);font-weight:bold}
-
-.foot{text-align:center;padding:22px;font-size:.72rem;color:var(--t2);border-top:1px solid var(--border);margin-top:40px}
-.foot a{color:var(--blue);text-decoration:none}
-
-@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-@keyframes scan{0%{width:5%;margin-left:0}50%{width:40%;margin-left:30%}100%{width:5%;margin-left:95%}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-@keyframes glowPulse{0%,100%{box-shadow:0 0 20px rgba(239,68,68,.35)}50%{box-shadow:0 0 50px rgba(239,68,68,.35),0 0 80px rgba(239,68,68,.1)}}
-@keyframes pulseBadge{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
-.badge-high.pulsing{animation:pulseBadge 1.5s infinite}
-@media(max-width:1024px){.dash{grid-template-columns:1fr}.agrid{grid-template-columns:1fr}.metrics{grid-template-columns:1fr}.rmeta{grid-template-columns:1fr}}
-
-/* ── Tab System ─────────────────────────────────────── */
-.tab-bar{display:flex;gap:4px;margin-bottom:20px}
-.tab-btn{padding:8px 18px;border:1px solid var(--border);border-radius:99px;background:var(--card);color:var(--t2);font-family:var(--font);font-size:.78rem;font-weight:600;cursor:pointer;transition:all .2s}
-.tab-btn:hover{border-color:rgba(59,130,246,.4);color:var(--t1)}
-.tab-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 0 16px var(--glow)}
-.tab-panel{display:none}
-.tab-panel.active{display:block}
-
-/* ── Custom Analysis Form ───────────────────────────── */
-.custom-form{display:flex;flex-direction:column;gap:16px}
-.form-row{display:flex;gap:12px;align-items:flex-start}
-.form-group{flex:1;display:flex;flex-direction:column}
-.form-group label{color:var(--t2);font-size:.72rem;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
-.form-group input,.form-group textarea{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--t1);padding:10px 14px;font-size:.85rem;font-family:var(--font);outline:none;transition:border-color .2s,box-shadow .2s}
-.form-group input:focus,.form-group textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
-.form-group textarea{resize:vertical;min-height:140px;line-height:1.6}
-.form-group input.error{border-color:var(--red);box-shadow:0 0 0 3px rgba(239,68,68,.15)}
-.form-group textarea.error{border-color:var(--red);box-shadow:0 0 0 3px rgba(239,68,68,.15)}
-.form-hint{font-size:.68rem;color:var(--red);margin-top:4px;display:none}
-.form-hint.vis{display:block}
-.input-shake{animation:shake .3s ease}
-@keyframes shake{0%{transform:translateX(0)}12%{transform:translateX(-6px)}25%{transform:translateX(0)}37%{transform:translateX(6px)}50%{transform:translateX(0)}62%{transform:translateX(-4px)}75%{transform:translateX(0)}87%{transform:translateX(4px)}100%{transform:translateX(0)}}
-
-/* ── Quick Fill Buttons ─────────────────────────────── */
-.quick-fill-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.quick-fill-btn{padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:transparent;color:var(--t2);font-family:var(--font);font-size:.72rem;font-weight:600;cursor:pointer;transition:all .2s}
-.quick-fill-btn:hover{border-color:var(--blue);color:var(--t1);background:rgba(59,130,246,.06)}
-
-/* ── Error Toast ────────────────────────────────────── */
-.toast{position:fixed;bottom:24px;right:24px;z-index:1000;background:var(--red);color:#fff;padding:12px 20px;border-radius:10px;font-family:var(--font);font-size:.82rem;font-weight:500;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.4);transform:translateY(80px);opacity:0;transition:transform .3s ease,opacity .3s ease;pointer-events:none}
-.toast.visible{transform:translateY(0);opacity:1;pointer-events:auto}
-
-/* ── Antigravity Badge ──────────────────────────────── */
-.ag-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:8px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);color:#a78bfa;font-size:.72rem;font-weight:600;text-decoration:none;transition:all .3s}
-.ag-badge:hover{background:rgba(139,92,246,.18);box-shadow:0 0 20px rgba(139,92,246,.25)}
-.ag-badge svg{width:14px;height:14px}
-</style>
+        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+    </style>
 </head>
 <body>
-<header class="hdr"><div class="hdr-brand"><img src="assets/logo.jpeg" height="32" alt="SA"><div><div class="hdr-name">SentinelAegis</div><div class="hdr-sub">AI-Powered BEC Fraud Detection</div></div></div><div class="hdr-status"><div class="hdr-live"><div class="hdr-dot"></div>LIVE</div><div class="hdr-latency" id="hdrLatency">3 Gemini Agents Active</div></div></header>
-<div class="wrap">
-<div class="metrics" style="grid-template-columns:repeat(4,1fr)">
-  <div class="mcard"><div class="mlbl">Transactions Analyzed</div><div class="mval" id="m-count">0</div><div class="msub">Live analysis</div></div>
-  <div class="mcard"><div class="mlbl">Amount Screened</div><div class="mval" id="m-amount">$0</div><div class="msub">Total value processed</div></div>
-  <div class="mcard"><div class="mlbl">Threats Blocked</div><div class="mval" id="m-threats">0</div><div class="msub">Fraud prevented</div></div>
-  <div class="mcard"><div class="mlbl">Avg Analysis Time</div><div class="mval" id="m-latency">—</div><div class="msub">Go + Gemini speed</div></div>
-</div>
-<div class="dash">
-  <div>
-    <div class="panel">
-      <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchTab('demo')">📋 Demo Scenarios</button>
-        <button class="tab-btn" onclick="switchTab('custom')">✏️ Custom Analysis</button>
-      </div>
-
-      <!-- Demo Scenarios Tab -->
-      <div class="tab-panel active" id="tab-demo">
-        <div class="ptitle">Transactions</div>
-        <div class="txlist" id="txList"></div>
-      </div>
-
-      <!-- Custom Analysis Tab -->
-      <div class="tab-panel" id="tab-custom">
-        <div class="quick-fill-bar">
-          <span style="font-size:.72rem;color:var(--t2);line-height:2">Quick fill:</span>
-          <button class="quick-fill-btn" onclick="quickFill('bec')">🚨 BEC Attack</button>
-          <button class="quick-fill-btn" onclick="quickFill('borderline')">⚡ Borderline</button>
-          <button class="quick-fill-btn" onclick="quickFill('safe')">✅ Safe</button>
+    <header class="hdr">
+        <div class="hdr-brand">
+            <svg class="hdr-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <div>
+                <div class="hdr-name">SentinelAegis <span class="badge-live">SOC</span></div>
+                <div class="hdr-mon" id="mon-addr">Monitoring inbox: sentinel-demo@gmail.com</div>
+            </div>
         </div>
-        <form class="custom-form" onsubmit="return false">
-          <div class="form-group">
-            <label for="cf-email">Email Content</label>
-            <textarea id="cf-email" rows="8" placeholder="Paste the suspicious email here..."></textarea>
-            <div class="form-hint" id="cf-email-err">Email content is required</div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label for="cf-vendor">Vendor Name</label><input type="text" id="cf-vendor" placeholder="Greenfield Solutions Ltd"></div>
-            <div class="form-group" style="max-width:140px"><label for="cf-amount">Amount</label><input type="number" id="cf-amount" placeholder="847000"></div>
-            <div class="form-group" style="max-width:80px"><label for="cf-currency">Currency</label><input type="text" id="cf-currency" value="USD"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label for="cf-iban-current">Current IBAN</label><input type="text" id="cf-iban-current" placeholder="GB29NWBK60161331926819"></div>
-            <div class="form-group"><label for="cf-iban-prev">Previous IBAN</label><input type="text" id="cf-iban-prev" placeholder="DE89370400440532013000"></div>
-          </div>
-          <div class="form-row">
-            <div class="form-group"><label for="cf-iban-hours">IBAN Changed (hrs ago)</label><input type="number" id="cf-iban-hours" value="0" min="0"></div>
-            <div class="form-group"><label for="cf-time-req">Requested At</label><input type="time" id="cf-time-req" value="18:47"></div>
-            <div class="form-group"><label for="cf-time-start">Window Start</label><input type="time" id="cf-time-start" value="09:00"></div>
-            <div class="form-group"><label for="cf-time-end">Window End</label><input type="time" id="cf-time-end" value="17:00"></div>
-          </div>
-          <button type="button" id="custom-analyze-btn" class="btn-go" onclick="runCustomAnalysis()">🔍 Run Live Analysis</button>
-        </form>
-      </div>
+        <div style="display:flex;gap:20px;align-items:center">
+            <div class="hdr-live"><div class="hdr-dot"></div>LIVE MONITORING</div>
+            <div class="hdr-mon" style="font-family:var(--mono)">3 Agents · Gemini 1.5 Pro</div>
+        </div>
+    </header>
+
+    <div class="metrics">
+        <div class="mcard"><div class="mlbl">Emails Analyzed</div><div class="mval" id="m-count">0</div></div>
+        <div class="mcard"><div class="mlbl">Amount Screened</div><div class="mval" id="m-amount">$0</div></div>
+        <div class="mcard"><div class="mlbl">Threats Blocked</div><div class="mval" id="m-threats">0</div></div>
+        <div class="mcard"><div class="mlbl">Avg Response</div><div class="mval" id="m-latency">—</div></div>
     </div>
 
-    <!-- Email preview (shown when demo scenario selected) -->
-    <div class="panel" id="emailPanel" style="display:none;margin-top:16px">
-      <div class="ptitle">Email Under Review</div>
-      <div class="emailbox"><div class="emailhdr" id="emailMeta"></div><div class="ebody" id="emailBody"></div></div>
-      <button class="btn-go" id="goBtn" onclick="runAnalysis()" disabled>🔍 Analyze with SentinelAegis</button>
+    <div class="main">
+        <div class="panel">
+            <div class="panel-hdr">
+                <div class="panel-title">📨 Live Email Feed</div>
+                <div id="conn-status" style="font-size:.65rem;font-weight:700;color:var(--green)">CONNECTED</div>
+            </div>
+            <div class="panel-scroll">
+                <div class="feed-list" id="email-feed">
+                    <!-- Emails scroll in here -->
+                </div>
+            </div>
+            <div style="padding:16px;border-top:1px solid var(--border)">
+                <button class="btn-demo" onclick="runDemo()">🎭 Trigger Demo BEC Scenario</button>
+            </div>
+        </div>
+
+        <div class="panel" id="analysis-panel">
+            <div class="empty-state">
+                <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="12" r="3"/></svg>
+                <div style="text-align:center">
+                    <div style="font-weight:700;margin-bottom:4px">Awaiting incoming data...</div>
+                    <div style="font-size:.8rem;opacity:.6">System is monitoring for suspicious BEC activity</div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-  <div class="rightcol">
-    <div class="panel"><div class="ptitle">Agent Analysis</div>
-      <div class="agrid">
-        <div class="acard" id="a0"><div class="ahdr"><div class="aicon">📧</div><div><div class="atitle">Email Tone <span class="gemini-tag">🤖 Gemini AI</span></div><div class="asub" id="a0s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Querying Gemini 1.5 Pro...</div></div><div class="aresult" id="a0r"></div></div>
-        <div class="acard" id="a1"><div class="ahdr"><div class="aicon">🏦</div><div><div class="atitle">IBAN Change <span class="gemini-tag">🤖 Gemini AI</span></div><div class="asub" id="a1s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Analyzing IBAN via Gemini...</div></div><div class="aresult" id="a1r"></div></div>
-        <div class="acard" id="a2"><div class="ahdr"><div class="aicon">⏰</div><div><div class="atitle">Timing <span class="gemini-tag">🤖 Gemini AI</span></div><div class="asub" id="a2s">Standby</div></div></div><div class="aloader"><div class="abar"><div class="afill"></div></div><div class="altxt">Analyzing timing via Gemini...</div></div><div class="aresult" id="a2r"></div></div>
-      </div>
-    </div>
-    <div class="csec" id="conSec"><div class="panel"><div class="ptitle">Consensus Decision</div><div class="cbanner" id="conBanner"><div class="cdec" id="conDec"></div><div style="position:relative;width:220px;margin:10px auto -15px auto"><canvas id="riskChart"></canvas><div class="cscore" id="conScore" style="position:absolute;bottom:10px;left:0;right:0;margin:0"></div></div><div class="cexpl" id="conExpl"></div></div><div class="rawlog"><div class="rawlog-hdr" onclick="this.parentElement.classList.toggle('open')"><span><span style="font-family:var(--mono);margin-right:6px">{ }</span>Raw AI Telemetry payload</span><span>▼</span></div><pre class="rawlog-body" id="rawLog"></pre></div></div></div>
-    <div class="rsec" id="rptSec"><div class="panel"><div class="ptitle">Audit Report</div><div id="rptContent"></div></div></div>
-  </div>
-</div>
-<footer class="foot">Powered by <a href="https://ai.google.dev">Google Gemini</a> · Built on <a href="https://cloud.google.com/run">Cloud Run</a> · <a href="https://antigravity.dev" class="ag-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Built with Antigravity IDE</a> · SentinelAegis © 2026</footer>
-</div>
 
-<script>
-const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
-let txs=[],sel=null,busy=false,nAnalyzed=0,totalAmt=0,nThreats=0;
+    <script>
+        const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
+        let analyses=[],stats={count:0,amount:0,threats:0,latency:0};
 
-function fmt$(n){return n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n.toLocaleString()}
+        // ── Real-time Connection (SSE) ──
+        function initSSE() {
+            const ev = new EventSource('/api/stream');
+            const status = $('#conn-status');
 
-function highlightBEC(text){
-  let h=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  ['urgent','immediately','ASAP','confidential','do not discuss','do NOT discuss','keep confidential','right now','trust you','today','WIRE IMMEDIATELY','cannot afford','do not route','don\'t tell','just between us','board meetings','penalty clause'].forEach(kw=>{
-    const re=new RegExp('('+kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
-    h=h.replace(re,'<mark>$1</mark>');
-  });
-  return h;
-}
+            ev.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                handleEvent(data);
+            };
 
-function playAlert(type){
-  try{const c=new(window.AudioContext||window.webkitAudioContext);
-  if(type==='HALT'){[660,520,660].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.value=f;const t=c.currentTime+i*.12;g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.15);o.start(t);o.stop(t+.15)})}
-  else if(type==='APPROVE'){[440,880].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.value=f;const t=c.currentTime+i*.1;g.gain.setValueAtTime(.06,t);g.gain.exponentialRampToValueAtTime(.001,t+.4);o.start(t);o.stop(t+.4)})}
-  }catch(e){}
-}
+            ev.onerror = () => {
+                status.textContent = 'RECONNECTING...';
+                status.style.color = 'var(--yellow)';
+            };
 
-async function loadTxs(){
-  const r=await fetch('/api/transactions');txs=await r.json();
-  $('#txList').innerHTML=txs.map(t=>`<div class="txcard" id="tx-${t.id}" onclick="selectTx('${t.id}')"><div class="txrow"><span class="txname">${t.vendor}</span><span class="txamt">${fmt$(t.amount)}</span></div><div class="txmeta">${t.email_subject} · ${t.status==='halted'?'<span class="badge badge-halted">HALTED</span>':t.requested_at}</div></div>`).join('');
-}
+            ev.onopen = () => {
+                status.textContent = 'CONNECTED';
+                status.style.color = 'var(--green)';
+            };
+        }
 
-function selectTx(id){
-  resetUI();
-  $$('.txcard').forEach(c=>c.classList.remove('active'));
-  $(`#tx-${id}`).classList.add('active');
-  sel=txs.find(t=>t.id===id);if(!sel)return;
-  $('#emailPanel').style.display='block';
-  $('#emailMeta').innerHTML=`<div class="ef"><span class="efl">From:</span><span class="efv">${sel.email_sender}</span></div><div class="ef"><span class="efl">Subject:</span><span class="efv" style="font-weight:600">${sel.email_subject}</span></div><div class="ef"><span class="efl">Time:</span><span class="efv">${sel.requested_at}</span></div>`;
-  $('#emailBody').innerHTML=highlightBEC(sel.email_text);
-  $('#goBtn').disabled=false;$('#goBtn').textContent='🔍 Analyze with SentinelAegis';
-}
+        function handleEvent(ev) {
+            if (ev.event_type === 'email_received') {
+                addEmailToFeed(ev.email, 'analyzing');
+            } else if (ev.event_type === 'consensus') {
+                updateEmailInFeed(ev.email.message_id, ev.consensus.decision);
+                updateMetrics(ev);
+                // Auto-select and show if it's new
+                showAnalysis(ev);
+            }
+        }
 
-function resetUI(){
-  $('#conSec').classList.remove('vis');$('#rptSec').classList.remove('vis');
-  [0,1,2].forEach(i=>{const c=$(`#a${i}`);c.className='acard';$(`#a${i}s`).textContent='Standby';$(`#a${i}r`).innerHTML=''});
-}
+        function addEmailToFeed(email, status) {
+            const feed = $('#email-feed');
+            const id = `feed-${email.message_id}`;
+            if ($( `#${id}`)) return; // Avoid duplicates
 
-function renderAgent(a,i){
-  const c=$(`#a${i}`);c.classList.remove('loading');c.classList.add('r-'+a.risk_level);
-  $(`#a${i}s`).textContent=a.risk_level+' RISK';
-  const bc=a.risk_level==='HIGH'?'badge-high':a.risk_level==='MEDIUM'?'badge-medium':'badge-low';
-  const pc=a.risk_level==='HIGH'?' pulsing':'';
-  const flags=(a.flags||[]).slice(0,4).map(f=>`<li>${f}</li>`).join('');
-  $(`#a${i}r`).innerHTML=`<div class="arisk"><span class="badge ${bc}${pc}">${a.risk_level}</span><span class="aconf">${(a.confidence*100).toFixed(0)}%</span></div><ul class="aflags">${flags}</ul><div class="aexpl">${a.explanation}</div>`;
-}
+            const card = document.createElement('div');
+            card.id = id;
+            card.className = `ecard ${status}`;
+            card.innerHTML = `
+                <div class="ecard-status"></div>
+                <div class="ecard-from"><span>${email.from.split('<')[0]}</span><span style="font-family:var(--mono)">${status === 'analyzing' ? '...' : ''}</span></div>
+                <div class="ecard-sub">${email.subject}</div>
+                <div class="ecard-meta"><span>${status.toUpperCase()}</span><span>${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+            `;
+            card.onclick = () => {
+                const existing = analyses.find(a => a.email.message_id === email.message_id);
+                if (existing) showAnalysis(existing);
+            };
+            feed.prepend(card);
+        }
 
-function renderConsensus(con){
-  const s=$('#conSec'),b=$('#conBanner');
-  b.className='cbanner '+con.decision;
-  const icon=con.decision==='HALT'?'🚨':con.decision==='REVIEW'?'⚡':'✅';
-  const label=con.decision==='HALT'?'TRANSACTION HALTED':con.decision==='REVIEW'?'MANUAL REVIEW REQUIRED':'TRANSACTION APPROVED';
-  const color=con.decision==='HALT'?'var(--red)':con.decision==='REVIEW'?'var(--yellow)':'var(--green)';
-  $('#conDec').textContent=icon+' '+label;$('#conDec').style.color=color;
-  $('#conScore').textContent=con.risk_score;$('#conScore').style.color=color;
-  $('#conExpl').textContent=con.explanation;
-  s.classList.add('vis');
-  if(window.riskChartObj)window.riskChartObj.destroy();
-  const ctx=document.getElementById('riskChart').getContext('2d');
-  window.riskChartObj=new Chart(ctx,{type:'doughnut',data:{labels:['Risk','Safe'],datasets:[{data:[con.risk_score,100-con.risk_score],backgroundColor:[color,'rgba(255,255,255,0.06)'],borderWidth:0,borderRadius:5}]},options:{cutout:'82%',rotation:-90,circumference:180,plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:1500,easing:'easeOutElastic'}}});
-  if(con.decision==='HALT'){b.classList.add('flash');playAlert('HALT')}else if(con.decision==='APPROVE'){playAlert('APPROVE')}
-  s.scrollIntoView({behavior:'smooth',block:'center'});
-}
+        function updateEmailInFeed(msgID, decision) {
+            const card = $(`#feed-${msgID}`);
+            if (!card) return;
+            card.className = `ecard ${decision.toLowerCase()}`;
+            const label = card.querySelector('.ecard-meta span:first-child');
+            const statusIcon = decision === 'HALT' ? '🚨' : decision === 'REVIEW' ? '⚡' : '✅';
+            label.textContent = `${statusIcon} ${decision}`;
+            
+            if (decision === 'HALT') {
+                card.classList.add('flash-red');
+                playAlert();
+            }
+        }
 
-function renderReport(con){
-  const acts=con.decision==='HALT'?['Verify sender via phone callback','Confirm IBAN through established channel','Escalate to fraud team within 1 hour','Preserve email headers as evidence','File SAR with compliance']:con.decision==='REVIEW'?['Secondary verification of sender','Hold payment 24 hours','Contact beneficiary via known number']:['Standard processing — no action required'];
-  const rows=con.agent_breakdown.map(a=>{const bc=a.risk_level==='HIGH'?'badge-high':a.risk_level==='MEDIUM'?'badge-medium':'badge-low';return`<div class="rarow"><span>${a.agent_name.replace('_',' ')}</span><span class="badge ${bc}">${a.risk_level}</span><span style="font-family:var(--mono)">${(a.confidence*100).toFixed(0)}%</span><span style="font-size:.78rem;color:var(--t2)">${a.explanation.split('.')[0]}.</span></div>`}).join('');
-  $('#rptContent').innerHTML=`<div class="rmeta"><div><div class="rfl">Vendor</div><div class="rfv">${sel.vendor}</div></div><div><div class="rfl">Amount</div><div class="rfv">${fmt$(sel.amount)}</div></div><div><div class="rfl">IBAN</div><div class="rfv mono">${sel.iban.slice(0,12)}...</div></div></div>${rows}<ul class="racts">${acts.map(a=>`<li>${a}</li>`).join('')}</ul>`;
-  $('#rptSec').classList.add('vis');
-}
+        function showAnalysis(ev) {
+            // Save to local list
+            if (!analyses.find(a => a.email.message_id === ev.email.message_id)) {
+                analyses.push(ev);
+            }
 
-async function runAnalysis(){
-  if(busy||!sel)return;busy=true;
-  const btn=$('#goBtn');btn.disabled=true;btn.textContent='⏳ Running AI Analysis...';
-  [0,1,2].forEach(i=>{$(`#a${i}`).classList.add('loading');$(`#a${i}s`).textContent='Analyzing...'});
-  try{
-    const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transaction_id:sel.id})});
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const d=await r.json();const ag=d.consensus.agent_breakdown;
-    // Sequential reveal
-    await new Promise(r=>setTimeout(r,300));renderAgent(ag[0],0);
-    await new Promise(r=>setTimeout(r,1500));renderAgent(ag[1],1);
-    await new Promise(r=>setTimeout(r,1500));renderAgent(ag[2],2);
-    await new Promise(r=>setTimeout(r,1500));
-    $('#rawLog').textContent=JSON.stringify(d,null,2);
-    renderConsensus(d.consensus);
-    await new Promise(r=>setTimeout(r,1000));renderReport(d.consensus);
-    if(d.latency_ms)$('#hdrLatency').textContent='Last analysis: '+d.latency_ms+'ms (3 Gemini calls)';
-    nAnalyzed++;totalAmt+=sel.amount;if(d.consensus.decision==='HALT')nThreats++;
-    $('#m-count').textContent=nAnalyzed;$('#m-amount').textContent=fmt$(totalAmt);$('#m-threats').textContent=nThreats;
-    if(d.consensus.decision==='HALT'){fetch('/api/halt/'+sel.id,{method:'POST'});sel.status='halted';loadTxs()}
-  }catch(e){console.error(e);btn.textContent='❌ Failed — Try Again'}
-  btn.disabled=false;btn.textContent='🔍 Re-Analyze';busy=false;
-}
+            // Mark feed card as active
+            $$('.ecard').forEach(c => c.classList.remove('active'));
+            const card = $(`#feed-${ev.email.message_id}`);
+            if (card) card.classList.add('active');
 
-// ── Tab System ──────────────────────────────────────────
-function switchTab(name){
-  $$('.tab-btn').forEach(b=>b.classList.remove('active'));
-  $$('.tab-panel').forEach(p=>p.classList.remove('active'));
-  const idx=name==='demo'?0:1;
-  $$('.tab-btn')[idx].classList.add('active');
-  $('#tab-'+name).classList.add('active');
-  if(name==='demo'){$('#emailPanel').style.display=sel?'block':'none'}
-  else{$('#emailPanel').style.display='none';if(!$('#cf-email').value.trim())prefillBECAttack()}
-  resetUI();
-}
-function prefillBECAttack(){quickFill('bec')}
+            const panel = $('#analysis-panel');
+            const c = ev.consensus;
+            const ag = c.agent_breakdown;
+            const color = c.decision === 'HALT' ? 'var(--red)' : c.decision === 'REVIEW' ? 'var(--yellow)' : 'var(--green)';
 
-// ── Quick Fill ──────────────────────────────────────────
-const SCENARIOS={
-  bec:{email:"Dear Sarah,\n\nI need you to process an urgent wire transfer today. Our vendor Greenfield Solutions has updated their banking details. Please transfer $847,000 to their new account immediately. This is time-sensitive — please process within the hour and do not discuss this with the finance team until the transfer is complete.\n\nBest regards,\nDavid Morrison\nCEO, Morrison & Associates",vendor:"Greenfield Solutions Ltd",amount:847000,currency:"USD",iban:"GB29NWBK60161331926819",prev:"DE89370400440532013000",hours:6,time:"18:47",wstart:"09:00",wend:"17:00"},
-  borderline:{email:"Hi team, just a heads up that we updated our banking details last week. Could you process the invoice for $124,000 by end of week?\nThanks, Partner Logistics",vendor:"Partner Logistics Inc",amount:124000,currency:"USD",iban:"NL91ABNA0417164300",prev:"NL02ABNA0123456789",hours:120,time:"17:45",wstart:"09:00",wend:"17:30"},
-  safe:{email:"Hi, please find attached invoice #INV-2847 for $32,400 for cloud hosting services this month. Banking details remain unchanged.\nThank you, CloudVault Hosting",vendor:"CloudVault Hosting",amount:32400,currency:"USD",iban:"DE89370400440532013000",prev:"DE89370400440532013000",hours:0,time:"10:15",wstart:"09:00",wend:"17:00"}
-};
-function quickFill(type){
-  const s=SCENARIOS[type];if(!s)return;
-  $('#cf-email').value=s.email;
-  $('#cf-vendor').value=s.vendor;
-  $('#cf-amount').value=s.amount;
-  $('#cf-currency').value=s.currency;
-  $('#cf-iban-current').value=s.iban;
-  $('#cf-iban-prev').value=s.prev;
-  $('#cf-iban-hours').value=s.hours;
-  $('#cf-time-req').value=s.time;
-  $('#cf-time-start').value=s.wstart;
-  $('#cf-time-end').value=s.wend;
-  // Clear any error states
-  $('#cf-email').classList.remove('error','input-shake');
-  $('#cf-amount').classList.remove('error');
-  $('#cf-email-err').classList.remove('vis');
-}
+            panel.innerHTML = `
+                <div class="analysis-view">
+                    <div class="a-hdr">
+                        <div class="a-vendor">${ev.email.subject}</div>
+                        <div class="a-meta">
+                            <span>From: ${ev.email.from}</span>
+                            <span>Time: ${new Date(ev.timestamp).toLocaleTimeString()}</span>
+                            <span>ID: ${ev.email.message_id.slice(0,8)}</span>
+                        </div>
+                    </div>
 
-// ── Form Validation ─────────────────────────────────────
-function validateCustomForm(){
-  $('#cf-email').classList.remove('error','input-shake');
-  $('#cf-amount').classList.remove('error');
-  $('#cf-email-err').classList.remove('vis');
-  if(!$('#cf-email').value.trim()){
-    $('#cf-email').classList.add('error','input-shake');
-    $('#cf-email-err').classList.add('vis');
-    showToast('Email content is required');
-    setTimeout(()=>$('#cf-email').classList.remove('input-shake'),300);
-    return false;
-  }
-  if(parseFloat($('#cf-amount').value)<=0||!$('#cf-amount').value){
-    $('#cf-amount').classList.add('error');
-    showToast('Amount must be greater than 0');
-    return false;
-  }
-  return true;
-}
+                    <div class="agrid">
+                        ${ag.map((a, i) => `
+                            <div class="acard" id="ac-${i}">
+                                <div class="ahdr">
+                                    <div class="aicon">${i===0?'📧':i===1?'🏦':'⏰'}</div>
+                                    <div class="atitle">${a.agent_name.replace('_',' ')}</div>
+                                </div>
+                                <div class="arisk" style="background:rgba(${a.risk_level==='HIGH'?'239,68,68':a.risk_level==='MEDIUM'?'245,158,11':'16,185,129'},.15);color:var(--${a.risk_level==='HIGH'?'red':a.risk_level==='MEDIUM'?'yellow':'green'})">
+                                    ${a.risk_level} RISK
+                                </div>
+                                <div style="font-family:var(--mono);font-size:1.2rem;font-weight:800;margin-top:10px">${(a.confidence*100).toFixed(0)}%</div>
+                                <ul class="aflags">${(a.flags||[]).slice(0,2).map(f=>`<li>${f}</li>`).join('')}</ul>
+                                <div class="aexpl">${a.explanation.split('.')[0]}.</div>
+                            </div>
+                        `).join('')}
+                    </div>
 
-// ── Custom Analysis ─────────────────────────────────────
-async function runCustomAnalysis(){
-  if(busy)return;
-  if(!validateCustomForm())return;
-  busy=true;
-  const btn=$('#custom-analyze-btn');
-  btn.disabled=true;btn.textContent='🔍 Analyzing...';
-  resetUI();
-  [0,1,2].forEach(i=>{$(`#a${i}`).classList.add('loading');$(`#a${i}s`).textContent='Analyzing...'});
-  const body={
-    email_body:$('#cf-email').value,
-    vendor_name:$('#cf-vendor').value||'Unknown Vendor',
-    amount:parseFloat($('#cf-amount').value)||0,
-    currency:$('#cf-currency').value||'USD',
-    current_iban:$('#cf-iban-current').value,
-    previous_iban:$('#cf-iban-prev').value,
-    iban_changed_hours_ago:parseInt($('#cf-iban-hours').value)||0,
-    requested_at:$('#cf-time-req').value||'12:00',
-    typical_window_start:$('#cf-time-start').value||'09:00',
-    typical_window_end:$('#cf-time-end').value||'17:00'
-  };
-  try{
-    const r=await fetch('/api/analyze/custom',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'HTTP '+r.status)}
-    const d=await r.json();const ag=d.consensus.agent_breakdown;
-    await new Promise(r=>setTimeout(r,300));renderAgent(ag[0],0);
-    await new Promise(r=>setTimeout(r,1500));renderAgent(ag[1],1);
-    await new Promise(r=>setTimeout(r,1500));renderAgent(ag[2],2);
-    await new Promise(r=>setTimeout(r,1500));
-    $('#rawLog').textContent=JSON.stringify(d,null,2);
-    renderConsensus(d.consensus);
-    // Custom report (no global sel, use form values)
-    await new Promise(r=>setTimeout(r,1000));
-    const csel={vendor:body.vendor_name,amount:body.amount,iban:body.current_iban||'N/A'};
-    const oldSel=sel;sel=csel;renderReport(d.consensus);sel=oldSel;
-    if(d.latency_ms)$('#hdrLatency').textContent='Last analysis: '+d.latency_ms+'ms (3 Gemini calls)';
-    pollStats();
-  }catch(e){console.error(e);showToast('Analysis failed: '+e.message)}
-  btn.disabled=false;btn.textContent='🔍 Run Live Analysis';busy=false;
-}
+                    <div class="a-body">${ev.email.body}</div>
 
-// ── Toast ───────────────────────────────────────────────
-let toastTimer=null;
-function showToast(msg){
-  const t=$('#toast');t.textContent=msg;t.classList.add('visible');
-  if(toastTimer)clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('visible'),5000);
-}
+                    <div class="con-banner ${c.decision}" id="con-banner">
+                        <div class="con-info">
+                            <div class="con-dec" style="color:${color}">${c.decision === 'HALT' ? '🚨 TRANSACTION HALTED' : c.decision === 'REVIEW' ? '⚡ MANUAL REVIEW' : '✅ APPROVED'}</div>
+                            <div class="con-expl">${c.explanation}</div>
+                        </div>
+                        <div class="con-score" style="color:${color}">${c.risk_score}</div>
+                    </div>
+                </div>
+            `;
 
-// ── Live Metrics Polling ────────────────────────────────
-function animateVal(el,target,suffix){
-  const start=parseInt(el.textContent)||0;
-  if(start===target){if(suffix)el.textContent=target+suffix;return}
-  const dur=600,steps=30,inc=(target-start)/steps;
-  let cur=start,step=0;
-  const iv=setInterval(()=>{step++;cur+=inc;
-    if(step>=steps){cur=target;clearInterval(iv)}
-    el.textContent=Math.round(cur)+(suffix||'');
-  },dur/steps);
-}
-async function pollStats(){
-  try{
-    const r=await fetch('/api/stats');const s=await r.json();
-    animateVal($('#m-count'),s.total_analyses||0,'');
-    animateVal($('#m-threats'),s.halt_count||0,'');
-    const avg=s.avg_latency_ms||0;
-    if(avg>0)animateVal($('#m-latency'),avg,'ms');
-    const est=(s.total_analyses||0)*156000;
-    $('#m-amount').textContent=fmt$(est);
-  }catch(e){}
-}
-function startMetricsPolling(){pollStats();setInterval(pollStats,30000)}
+            // Sequential reveal
+            setTimeout(() => $('#ac-0').classList.add('show'), 100);
+            setTimeout(() => $('#ac-1').classList.add('show'), 600);
+            setTimeout(() => $('#ac-2').classList.add('show'), 1100);
+            setTimeout(() => $('#con-banner').classList.add('show'), 1600);
 
-document.addEventListener('DOMContentLoaded',()=>{loadTxs();startMetricsPolling()});
-</script>
-<div class="toast" id="toast"></div>
+            if (c.decision === 'HALT') {
+                document.body.style.boxShadow = 'inset 0 0 100px rgba(239,68,68,.1)';
+                setTimeout(() => document.body.style.boxShadow = 'none', 1000);
+            }
+        }
+
+        function updateMetrics(ev) {
+            stats.count++;
+            stats.latency = ((stats.latency * (stats.count-1)) + ev.latency_ms) / stats.count;
+            if (ev.consensus.decision === 'HALT') stats.threats++;
+            
+            // Extract amount from email body/subject if possible
+            const amtMatch = ev.email.body.match(/\$([\d,]+)/);
+            if (amtMatch) stats.amount += parseInt(amtMatch[1].replace(/,/g, ''));
+            else stats.amount += 50000;
+
+            animateVal($('#m-count'), stats.count);
+            $('#m-amount').textContent = `$${(stats.amount/1000).toFixed(0)}K`;
+            animateVal($('#m-threats'), stats.threats);
+            $('#m-latency').textContent = `${Math.round(stats.latency)}ms`;
+        }
+
+        function animateVal(el, target) {
+            const start = parseInt(el.textContent) || 0;
+            const dur = 500;
+            const startTime = performance.now();
+            function up(now) {
+                const p = Math.min((now - startTime) / dur, 1);
+                el.textContent = Math.round(start + (target - start) * p);
+                if (p < 1) requestAnimationFrame(up);
+            }
+            requestAnimationFrame(up);
+        }
+
+        function playAlert() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.frequency.value = 440; gain.gain.value = 0.08;
+                osc.start(); osc.stop(ctx.currentTime + 0.2);
+            } catch(e) {}
+        }
+
+        async function runDemo() {
+            // Simulated BEC email for Demo Day backup
+            const demoEmail = {
+                message_id: 'demo-' + Date.now(),
+                from: 'CEO David <ceo@morrison-associates.com>',
+                subject: 'URGENT: Change of Banking Details for Greenfield',
+                body: "Sarah, I'm in back-to-back meetings. We need to update the payment for Greenfield Solutions immediately. Their new IBAN is GB29NWBK60161331926819. Please process the $847,000 transfer ASAP. Do not share this until confirmed.",
+                date: new Date().toISOString()
+            };
+            
+            handleEvent({ event_type: 'email_received', email: demoEmail });
+            
+            // Call actual analysis API to get real Gemini results
+            try {
+                const r = await fetch('/api/analyze/custom', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        email_body: demoEmail.body,
+                        vendor_name: "Greenfield Solutions",
+                        amount: 847000,
+                        current_iban: "GB29NWBK60161331926819",
+                        iban_changed_hours_ago: 2
+                    })
+                });
+                const d = await r.json();
+                handleEvent({
+                    event_type: 'consensus',
+                    email: demoEmail,
+                    consensus: d.consensus,
+                    latency_ms: d.latency_ms,
+                    timestamp: new Date().toISOString()
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        async function initStatus() {
+            try {
+                const r = await fetch('/api/status');
+                const s = await r.json();
+                if (s.inbox) $('#mon-addr').textContent = `Monitoring inbox: ${s.inbox}`;
+            } catch(e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initSSE();
+            initStatus();
+        });
+    </script>
 </body>
 </html>
