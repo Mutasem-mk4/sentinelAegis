@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"sentinelaegis/agents"
@@ -34,6 +37,7 @@ var (
 	haltCount      atomic.Int64
 	reviewCount    atomic.Int64
 	approveCount   atomic.Int64
+	startTime      time.Time
 )
 
 // ── Gmail / SSE globals ─────────────────────────────────
@@ -46,8 +50,19 @@ var (
 	gmailEnabled   bool
 )
 
+// ── Logger ──────────────────────────────────────────────
+
+var logger *slog.Logger
+
 func init() {
 	transactions = data.DemoTransactions()
+	startTime = time.Now()
+
+	// Structured JSON logging for audit trail compliance
+	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
 }
 
 // ── Helpers ─────────────────────────────────────────────
@@ -62,13 +77,24 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
+// correlationID extracts or generates a unique trace ID for request tracking.
+func correlationID(r *http.Request) string {
+	if id := r.Header.Get("X-Correlation-ID"); id != "" {
+		return id
+	}
+	if id := r.Header.Get("X-Request-ID"); id != "" {
+		return id
+	}
+	return fmt.Sprintf("sa-%d", time.Now().UnixNano())
+}
+
 // ── Middleware ───────────────────────────────────────────
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Correlation-ID, X-Request-ID")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -80,14 +106,105 @@ func corsMiddleware(next http.Handler) http.Handler {
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		latency := time.Since(start)
-		log.Printf("[%s] %s %s (%s)", r.Method, r.URL.Path, r.RemoteAddr, latency.Round(time.Millisecond))
+		cid := correlationID(r)
+		ctx := context.WithValue(r.Context(), ctxKeyCorrelationID, cid)
+		w.Header().Set("X-Correlation-ID", cid)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+
+		logger.Info("request",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("remote", r.RemoteAddr),
+			slog.String("correlation_id", cid),
+			slog.Duration("latency", time.Since(start)),
+		)
 	})
 }
 
+// rateLimitMiddleware implements a simple token-bucket rate limiter per IP.
+type rateLimiter struct {
+	mu       sync.Mutex
+	visitors map[string]*visitor
+	limit    int
+	window   time.Duration
+}
+
+type visitor struct {
+	tokens    int
+	lastReset time.Time
+}
+
+func newRateLimiter(limit int, window time.Duration) *rateLimiter {
+	rl := &rateLimiter{
+		visitors: make(map[string]*visitor),
+		limit:    limit,
+		window:   window,
+	}
+	// Cleanup stale entries every minute
+	go func() {
+		for {
+			time.Sleep(time.Minute)
+			rl.mu.Lock()
+			for ip, v := range rl.visitors {
+				if time.Since(v.lastReset) > rl.window*2 {
+					delete(rl.visitors, ip)
+				}
+			}
+			rl.mu.Unlock()
+		}
+	}()
+	return rl
+}
+
+func (rl *rateLimiter) allow(ip string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	v, exists := rl.visitors[ip]
+	if !exists {
+		rl.visitors[ip] = &visitor{tokens: rl.limit - 1, lastReset: time.Now()}
+		return true
+	}
+
+	if time.Since(v.lastReset) >= rl.window {
+		v.tokens = rl.limit - 1
+		v.lastReset = time.Now()
+		return true
+	}
+
+	if v.tokens <= 0 {
+		return false
+	}
+
+	v.tokens--
+	return true
+}
+
+func rateLimitMiddleware(rl *rateLimiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := strings.Split(r.RemoteAddr, ":")[0]
+			if !rl.allow(ip) {
+				w.Header().Set("Retry-After", "60")
+				writeError(w, http.StatusTooManyRequests, "Rate limit exceeded. Please retry in 60 seconds.")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// ── Context keys ────────────────────────────────────────
+
+type ctxKey string
+
+const ctxKeyCorrelationID ctxKey = "correlation_id"
+
 // ── Handlers ────────────────────────────────────────────
 
+// healthHandler returns basic system health for Cloud Run.
+// GET /healthz
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	model := os.Getenv("MODEL_NAME")
 	if model == "" {
@@ -98,9 +215,23 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"model":          model,
 		"analysis_count": analysisCount.Load(),
 		"gmail_enabled":  gmailEnabled,
+		"uptime_seconds": int(time.Since(startTime).Seconds()),
 	})
 }
 
+// readyHandler signals readiness to accept traffic.
+// GET /readyz
+func readyHandler(w http.ResponseWriter, r *http.Request) {
+	// Check critical components are initialized
+	if sseHub == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "not_ready", "reason": "SSE hub not initialized"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
+}
+
+// statsHandler returns operational metrics for the dashboard.
+// GET /api/stats
 func statsHandler(w http.ResponseWriter, r *http.Request) {
 	count := analysisCount.Load()
 	var avgMs int64
@@ -108,13 +239,14 @@ func statsHandler(w http.ResponseWriter, r *http.Request) {
 		avgMs = totalLatencyMs.Load() / count
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"total_analyses":   count,
-		"halt_count":       haltCount.Load(),
-		"review_count":     reviewCount.Load(),
-		"approve_count":    approveCount.Load(),
-		"avg_latency_ms":   avgMs,
-		"halt_rate_pct":    safePercent(haltCount.Load(), count),
+		"total_analyses":  count,
+		"halt_count":      haltCount.Load(),
+		"review_count":    reviewCount.Load(),
+		"approve_count":   approveCount.Load(),
+		"avg_latency_ms":  avgMs,
+		"halt_rate_pct":   safePercent(haltCount.Load(), count),
 		"agents_per_query": 3,
+		"uptime_seconds":  int(time.Since(startTime).Seconds()),
 	})
 }
 
@@ -125,6 +257,8 @@ func safePercent(part, total int64) float64 {
 	return float64(part) / float64(total) * 100
 }
 
+// transactionsHandler returns all demo transaction scenarios.
+// GET /api/transactions
 func transactionsHandler(w http.ResponseWriter, r *http.Request) {
 	txMu.RLock()
 	defer txMu.RUnlock()
@@ -139,14 +273,24 @@ type analyzeResponse struct {
 	TransactionID string                 `json:"transaction_id"`
 	Consensus     agents.ConsensusResult `json:"consensus"`
 	LatencyMs     int64                  `json:"latency_ms"`
+	CorrelationID string                 `json:"correlation_id,omitempty"`
 }
 
+// analyzeHandler runs all 3 AI agents concurrently and returns consensus.
+// POST /api/analyze
 func analyzeHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cid, _ := ctx.Value(ctxKeyCorrelationID).(string)
 	start := time.Now()
 
 	var req analyzeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
+
+	if strings.TrimSpace(req.TransactionID) == "" {
+		writeError(w, http.StatusBadRequest, "transaction_id is required")
 		return
 	}
 
@@ -166,7 +310,7 @@ func analyzeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run all 3 agents concurrently via goroutines
+	// Run all 3 agents concurrently via goroutines (fan-out pattern)
 	var (
 		emailResult  agents.AgentResult
 		ibanResult   agents.AgentResult
@@ -189,12 +333,22 @@ func analyzeHandler(w http.ResponseWriter, r *http.Request) {
 	// Update metrics
 	updateMetrics(consensus.Decision, latency)
 
-	log.Printf("[ANALYSIS] %s → %s (score: %d, latency: %dms)", req.TransactionID, consensus.Decision, consensus.RiskScore, latency)
+	logger.Info("analysis_complete",
+		slog.String("correlation_id", cid),
+		slog.String("transaction_id", req.TransactionID),
+		slog.String("decision", consensus.Decision),
+		slog.Int("risk_score", consensus.RiskScore),
+		slog.Int64("latency_ms", latency),
+		slog.String("email_risk", emailResult.RiskLevel),
+		slog.String("iban_risk", ibanResult.RiskLevel),
+		slog.String("timing_risk", timingResult.RiskLevel),
+	)
 
 	writeJSON(w, http.StatusOK, analyzeResponse{
 		TransactionID: req.TransactionID,
 		Consensus:     consensus,
 		LatencyMs:     latency,
+		CorrelationID: cid,
 	})
 }
 
@@ -213,7 +367,11 @@ type customAnalyzeRequest struct {
 	TypicalEnd        string  `json:"typical_window_end"`
 }
 
+// analyzeCustomHandler accepts user-provided data for ad-hoc analysis.
+// POST /api/analyze/custom
 func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cid, _ := ctx.Value(ctxKeyCorrelationID).(string)
 	start := time.Now()
 
 	var req customAnalyzeRequest
@@ -284,15 +442,24 @@ func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
 	latency := time.Since(start).Milliseconds()
 	updateMetrics(consensus.Decision, latency)
 
-	log.Printf("[CUSTOM] %s → %s (score: %d, latency: %dms)", req.VendorName, consensus.Decision, consensus.RiskScore, latency)
+	logger.Info("custom_analysis_complete",
+		slog.String("correlation_id", cid),
+		slog.String("vendor", req.VendorName),
+		slog.String("decision", consensus.Decision),
+		slog.Int("risk_score", consensus.RiskScore),
+		slog.Int64("latency_ms", latency),
+	)
 
 	writeJSON(w, http.StatusOK, analyzeResponse{
 		TransactionID: customID,
 		Consensus:     consensus,
 		LatencyMs:     latency,
+		CorrelationID: cid,
 	})
 }
 
+// haltHandler manually halts a specific transaction.
+// POST /api/halt/{id}
 func haltHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 4 {
@@ -307,7 +474,10 @@ func haltHandler(w http.ResponseWriter, r *http.Request) {
 	for i := range transactions {
 		if transactions[i].ID == txID {
 			transactions[i].Status = "halted"
-			log.Printf("[HALT] Transaction %s HALTED", txID)
+			logger.Warn("transaction_halted",
+				slog.String("transaction_id", txID),
+				slog.String("action", "manual_halt"),
+			)
 			writeJSON(w, http.StatusOK, map[string]string{
 				"status":         "halted",
 				"transaction_id": txID,
@@ -320,6 +490,8 @@ func haltHandler(w http.ResponseWriter, r *http.Request) {
 
 // ── Monitoring Status ───────────────────────────────────
 
+// statusHandler returns the current monitoring state.
+// GET /api/status
 func statusHandler(w http.ResponseWriter, r *http.Request) {
 	clientCount := 0
 	if sseHub != nil {
@@ -330,6 +502,7 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 		"inbox":             monitoredEmail,
 		"emails_analyzed":   analysisCount.Load(),
 		"connected_clients": clientCount,
+		"uptime_seconds":    int(time.Since(startTime).Seconds()),
 	})
 }
 
@@ -362,9 +535,12 @@ func main() {
 		model = "gemini-1.5-pro"
 	}
 	if apiKey == "" {
-		log.Println("⚠️  GEMINI_API_KEY not set — all agents will use rule-based fallback")
+		logger.Warn("gemini_api_key_missing", slog.String("fallback", "rule-based agents only"))
 	} else {
-		log.Printf("✅ GEMINI_API_KEY configured (model: %s, 3 AI agents active)", model)
+		logger.Info("gemini_configured",
+			slog.String("model", model),
+			slog.Int("agent_count", 3),
+		)
 	}
 
 	// ── Initialize SSE Hub ──────────────────────────────
@@ -383,11 +559,11 @@ func main() {
 	if credsB64 != "" && monitoredEmail != "" {
 		credsJSON, err := base64.StdEncoding.DecodeString(credsB64)
 		if err != nil {
-			log.Printf("⚠️  Failed to decode GMAIL_CREDENTIALS_JSON: %v", err)
+			logger.Error("gmail_credentials_decode_failed", slog.String("error", err.Error()))
 		} else {
 			gc, err := gmail.NewGmailClient(credsJSON, monitoredEmail)
 			if err != nil {
-				log.Printf("⚠️  Gmail client init failed: %v", err)
+				logger.Error("gmail_client_init_failed", slog.String("error", err.Error()))
 			} else {
 				gmailClient = gc
 				gmailEnabled = true
@@ -395,12 +571,12 @@ func main() {
 				// Verify connected email
 				email := gc.GetConnectedEmail()
 				monitoredEmail = email
-				log.Printf("📧 Connected to Gmail: %s", email)
+				logger.Info("gmail_connected", slog.String("email", email))
 
 				// Set up inbox watch
 				if projectID != "" {
 					if err := gc.WatchInbox(projectID, pubsubTopic); err != nil {
-						log.Printf("⚠️  Gmail watch setup failed: %v", err)
+						logger.Error("gmail_watch_failed", slog.String("error", err.Error()))
 					}
 				}
 
@@ -419,20 +595,31 @@ func main() {
 					}
 				}()
 
-				log.Printf("🛡️ Monitoring inbox: %s — LIVE", monitoredEmail)
+				logger.Info("inbox_monitoring_active", slog.String("email", monitoredEmail))
 			}
 		}
 	} else {
-		log.Println("ℹ️  Gmail integration disabled (set GMAIL_CREDENTIALS_JSON + MONITORED_EMAIL to enable)")
+		logger.Info("gmail_integration_disabled",
+			slog.String("hint", "set GMAIL_CREDENTIALS_JSON + MONITORED_EMAIL to enable"),
+		)
 		if monitoredEmail == "" {
 			monitoredEmail = "sentinel-demo@gmail.com"
 		}
 	}
 
+	// ── Rate Limiter ────────────────────────────────────
+	rl := newRateLimiter(30, time.Minute) // 30 requests/minute per IP
+
 	// ── Routes ──────────────────────────────────────────
 	mux := http.NewServeMux()
 
+	// Health & readiness (no rate limit — used by Cloud Run)
+	mux.HandleFunc("GET /healthz", healthHandler)
+	mux.HandleFunc("GET /readyz", readyHandler)
+	// Backwards compatibility
 	mux.HandleFunc("GET /health", healthHandler)
+
+	// API routes
 	mux.HandleFunc("GET /api/stats", statsHandler)
 	mux.HandleFunc("GET /api/transactions", transactionsHandler)
 	mux.HandleFunc("GET /api/status", statusHandler)
@@ -459,10 +646,49 @@ func main() {
 		fs.ServeHTTP(w, r)
 	}))
 
-	handler := loggingMiddleware(corsMiddleware(mux))
+	// Middleware chain: rate-limit → logging → CORS → router
+	handler := rateLimitMiddleware(rl)(loggingMiddleware(corsMiddleware(mux)))
 
-	log.Printf("🛡️ SentinelAegis starting on :%s (3 AI agents, consensus engine, SSE hub)", port)
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
-		log.Fatal(err)
+	// ── Server with Graceful Shutdown ────────────────────
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 60 * time.Second, // Generous for SSE
+		IdleTimeout:  120 * time.Second,
 	}
+
+	// Graceful shutdown: listen for SIGINT/SIGTERM
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		logger.Info("server_starting",
+			slog.String("addr", ":"+port),
+			slog.Int("agents", 3),
+			slog.Bool("gmail", gmailEnabled),
+			slog.String("model", model),
+		)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server_error", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-ctx.Done()
+	logger.Info("shutdown_initiated", slog.String("reason", "signal received"))
+
+	// Give active requests 10 seconds to complete
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("shutdown_error", slog.String("error", err.Error()))
+	}
+
+	logger.Info("server_stopped",
+		slog.Int64("total_analyses", analysisCount.Load()),
+		slog.Duration("uptime", time.Since(startTime)),
+	)
 }

@@ -1,32 +1,36 @@
-<!-- Cache refresh: 2026-04-24T21:00:00 -->
+<!-- Cache refresh: 2026-05-01T16:00:00 -->
 <div align="center">
 
 <img src="frontend/assets/logo.jpeg" width="100%" alt="SentinelAegis Logo">
 
-**Multi-agent AI consensus engine that stops BEC wire fraud before the money moves.**
+# SentinelAegis
+## Autonomous Multi-Agent Consensus for Cross-Domain Financial Integrity
 
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![Gemini](https://img.shields.io/badge/Gemini_1.5_Pro-Live_AI-4285F4?logo=google&logoColor=white)](https://ai.google.dev)
-[![Cloud Run](https://img.shields.io/badge/Cloud_Run-Deployed-34A853?logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev)
+[![Gemini](https://img.shields.io/badge/Gemini_1.5_Pro-Live_AI-4285F4?style=flat&logo=google&logoColor=white)](https://ai.google.dev)
+[![Cloud Run](https://img.shields.io/badge/Cloud_Run-Deployed-34A853?style=flat&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
 [![Built with](https://img.shields.io/badge/Built_with-Antigravity_IDE-8B5CF6)](https://antigravity.dev)
-[![Tests](https://img.shields.io/badge/Tests-8_Passing-10b981)](agents/consensus_test.go)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-16_Passing-10b981)](agents/consensus_test.go)
+[![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6BA539)](api/openapi/sentinel-aegis.yaml)
 
 *Three AI agents. One consensus. Zero fraud.*
 
-[🔗 Live Demo](https://sentinelaegis-471764064985.us-central1.run.app) · [🎬 Demo Video][VIDEO_URL] · [📊 Pitch Deck][DECK_URL]
+[🔗 Live Demo](https://sentinelaegis-471764064985.us-central1.run.app) · [📊 API Spec](api/openapi/sentinel-aegis.yaml) · [📄 PSD3 Compliance](docs/psd3-compliance-mapping.md)
 
 </div>
 
 ---
 
-## What It Does
+## 🛡️ The Problem
 
-SentinelAegis analyzes wire transfer requests using **3 independent Gemini 1.5 Pro agents** that evaluate email language, banking detail changes, and timing patterns simultaneously. A consensus engine applies 2-of-3 voting to produce one decision: **APPROVE**, **REVIEW**, or **HALT** — in under 4 seconds.
+Business Email Compromise (BEC) fraud costs the global financial system **$2.7 billion annually** (FBI IC3, 2025). Modern attacks are multi-stage — an attacker compromises a vendor's email, manipulates banking details in the ERP system, and executes a wire transfer during off-hours to avoid oversight. **No existing system correlates behavioral anomalies across email, banking, and timing domains simultaneously.** This visibility gap will be legislated against under PSD3/PSR in 2026.
 
----
+## 🧠 Our Solution
 
-## Architecture
+**SentinelAegis** deploys **three independent AI agents** powered by Google Gemini 1.5 Pro that analyze every wire transfer request from different perspectives. A deterministic **2-of-3 consensus engine** produces a single decision: **HALT**, **REVIEW**, or **APPROVE** — in under 4 seconds.
+
+## 🏗️ Architecture
 
 ```mermaid
 graph LR
@@ -47,29 +51,87 @@ graph LR
 ```
 
 **Key design decisions:**
-- **Go stdlib only** — zero external dependencies, 15MB Docker image
+- **Go stdlib only** — zero external framework dependencies, 15MB Docker image
 - **Cloud Run** with `min-instances=1` — no cold starts
 - **3 concurrent Gemini calls** via goroutines + `sync.WaitGroup`
 - **Rule-based fallbacks** — if Gemini is unavailable, deterministic rules take over silently
+- **Structured JSON logging** via `slog` with correlation IDs for full audit trails
+- **Graceful shutdown** via `signal.NotifyContext` for zero-downtime deployments
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/Mutasem-mk4/sentinelAegis.git
+cd sentinelAegis
+
+# 2. Set your Gemini API key
+export GEMINI_API_KEY=your_key_here
+
+# 3. Run
+go run .
+
+# 4. Open http://localhost:8080
+
+# 5. Run tests
+make test
+```
+
+No `npm install`. No `pip install`. No `docker build`. Just `go run .`
+
+---
+
+## 🔬 How It Works
+
+### The Three Agents
+
+| Agent | Signal Domain | Detection Target | Gemini Role |
+|---|---|---|---|
+| 📧 **Email Tone** | Natural language | Social engineering, urgency pressure, authority exploitation, isolation tactics | Full prompt analysis with BEC-specific system instructions |
+| 🏦 **IBAN Change** | Banking data | Beneficiary manipulation, IBAN-swap attacks within 48h window, cross-border changes | AI analysis of change context + deterministic rules |
+| ⏰ **Timing** | Behavioral patterns | Off-hours requests, deadline pressure, deviations from vendor payment windows | AI analysis of behavioral patterns + deterministic rules |
+
+### The Consensus Protocol
+
+```
+risk_score = (HIGH_count × 40) + (MEDIUM_count × 20) + avg(confidence) × 10
+```
+
+| Condition | Decision | Score Range | Action |
+|---|---|---|---|
+| 2+ agents flag HIGH | **🚨 HALT** | 85–100 | Transaction blocked, manual review required |
+| 1 agent flags HIGH | **⚡ REVIEW** | 45–75 | Escalated to human analyst |
+| 0 agents flag HIGH | **✅ APPROVE** | 0–30 | Standard processing proceeds |
+
+### Resilience: Rule-Based Fallbacks
+
+Every agent implements dual-mode analysis. If Gemini is unavailable:
+- **Email Agent** → Returns LOW risk (manual review flag)
+- **IBAN Agent** → Deterministic rules: ≤48h=HIGH, ≤168h=MEDIUM, >168h=LOW
+- **Timing Agent** → Deterministic rules: >120min=HIGH, >30min=MEDIUM, in-window=LOW
+
+**The system never crashes. It only degrades gracefully.**
 
 ---
 
 ## What's Real vs. Simulated
 
-Transparency builds trust. Here's exactly what happens under the hood:
-
 | Component | Status | Details |
 |---|---|---|
 | 📧 Email Tone Agent | ✅ **Live Gemini AI** | Real-time Gemini 1.5 Pro call analyzing email language for BEC indicators |
-| 🏦 IBAN Change Agent | ✅ **Live Gemini AI** + 🔧 Mock Data | Gemini analyzes IBAN change context; change history is mock data (production would connect to core banking) |
-| ⏰ Timing Agent | ✅ **Live Gemini AI** + 🔧 Mock Data | Gemini analyzes timing patterns; vendor windows are mock data (production would use transaction history) |
+| 🏦 IBAN Change Agent | ✅ **Live Gemini AI** + 🔧 Mock Data | Gemini analyzes IBAN change context; change history is mock data |
+| ⏰ Timing Agent | ✅ **Live Gemini AI** + 🔧 Mock Data | Gemini analyzes timing patterns; vendor windows are mock data |
 | 🛡️ Consensus Engine | ✅ **Real Logic** | 2-of-3 weighted voting with risk score calculation |
 | 📊 Metrics & Stats | ✅ **Real** | Atomic counters tracking analyses, halt rate, avg latency |
 | ☁️ Cloud Run | ✅ **Real** | Live public URL, auto-scaling, min-instances=1 |
+| 📧 Gmail Ingestion | ✅ **Real** | OAuth2 + Pub/Sub push notifications for autonomous monitoring |
+| 📡 SSE Dashboard | ✅ **Real** | Real-time event streaming to connected browsers |
 
 ---
 
-## Demo Scenarios
+## 🧪 Demo Scenarios
 
 | # | Transaction | Amount | Expected | Why |
 |---|---|---|---|---|
@@ -81,26 +143,109 @@ Transparency builds trust. Here's exactly what happens under the hood:
 
 ---
 
-## Local Setup
+## 📊 Performance
 
-```bash
-git clone https://github.com/Mutasem-mk4/sentinelAegis.git
-cd sentinelAegis
-export GEMINI_API_KEY=your_key_here
-go run .
-# Open http://localhost:8080
+| Metric | Value |
+|---|---|
+| **Average Analysis Latency** | <4 seconds (3 parallel Gemini calls) |
+| **Consensus Computation** | <1μs (see benchmarks) |
+| **Docker Image Size** | ~15MB |
+| **Memory Usage** | <256MB |
+| **Test Coverage** | 16 tests, 2 benchmarks |
+| **Cold Start** | 0 (min-instances=1) |
+| **Cost Per Analysis** | ~$0.02 (3 Gemini API calls) |
+
+---
+
+## 📜 PSD3/PSR Compliance
+
+SentinelAegis is designed with the upcoming EU PSD3/PSR regulation in mind:
+
+| PSD3 Requirement | SentinelAegis Feature |
+|---|---|
+| Verification of Payee (Art. 58) | IBAN Change Agent validates beneficiary details |
+| Strong Customer Authentication (Art. 97) | Multi-agent consensus mimics multi-factor verification |
+| Real-Time Fraud Monitoring (Art. 83) | Sub-5-second analysis with SSE dashboard |
+| Audit Trail (Art. 85) | Structured JSON logging with correlation IDs |
+| Incident Response (Art. 96) | Automated HALT with full reasoning chain |
+
+📄 [Full PSD3 Compliance Mapping →](docs/psd3-compliance-mapping.md)
+
+---
+
+## 🔐 Security
+
+- **Zero secrets in code** — all credentials via environment variables
+- **Rate limiting** — 30 requests/minute per IP with token bucket algorithm
+- **Input validation** — all API inputs validated and sanitized
+- **Non-root container** — Docker runs as dedicated `aegis` user
+- **Structured audit logging** — every decision logged with correlation ID
+- **CORS configured** — restricts cross-origin access
+- **Server timeouts** — read (15s), write (60s), idle (120s)
+
+---
+
+## Scalability: How This Handles 1M+ Transactions
+
+| Challenge | Solution |
+|---|---|
+| **Throughput** | Cloud Run auto-scales to N instances. Each handles concurrent requests via goroutines. |
+| **Gemini rate limits** | Rule-based fallbacks activate automatically — system never crashes. |
+| **Latency** | All 3 agents fire in parallel (fan-out). Total latency = max(agent), not sum. |
+| **Cost** | ~$0.02 per analysis. At 1M transactions/month: ~$20K — cheaper than one fraud loss. |
+| **New agents** | Consensus engine accepts N agents. Add sanctions, geolocation, or network analysis without changing core. |
+| **Compliance** | PSD3 mandates VoP. SentinelAegis provides the AI layer for automated compliance. |
+
+---
+
+## 📂 Project Structure
+
 ```
-
-No `npm install`. No `pip install`. No `docker build`. Just `go run .`
-
-Run tests:
-```bash
-go test ./agents/ -v
+sentinelAegis/
+├── main.go                    ← HTTP server, middleware, routing, graceful shutdown
+├── go.mod                     ← Dependencies (minimal)
+├── Dockerfile                 ← Multi-stage build, non-root, ~15MB image
+├── Makefile                   ← Build, test, lint, deploy automation
+├── agents/
+│   ├── gemini.go              ← Shared Gemini REST client
+│   ├── consensus.go           ← 2-of-3 voting engine + types
+│   ├── consensus_test.go      ← 8 table-driven consensus tests
+│   ├── agents_test.go         ← 7 agent-level tests
+│   ├── benchmark_test.go      ← Performance benchmarks
+│   ├── email_tone.go          ← Email language analysis (Gemini)
+│   ├── iban_change.go         ← IBAN change detection (Gemini + rules)
+│   ├── timing.go              ← Timing anomaly detection (Gemini + rules)
+│   └── custom.go              ← Custom transaction injection
+├── data/
+│   └── transactions.go        ← 5 demo scenarios
+├── gmail/
+│   ├── client.go              ← Gmail API integration (OAuth2)
+│   ├── analyzer.go            ← Email → Transaction → Analysis pipeline
+│   └── pubsub.go              ← Pub/Sub push notification handler
+├── sse/
+│   └── hub.go                 ← Server-Sent Events broadcasting
+├── types/
+│   └── types.go               ← Shared type definitions
+├── frontend/
+│   └── index.html             ← SOC Dashboard (HTML + CSS + JS)
+├── api/
+│   └── openapi/
+│       └── sentinel-aegis.yaml ← OpenAPI 3.1 specification
+├── scripts/
+│   └── deploy.sh              ← Cloud Run deployment automation
+└── docs/
+    ├── adr/
+    │   ├── 001-multi-agent-consensus.md
+    │   ├── 002-rule-based-fallbacks.md
+    │   └── 003-stdlib-only.md
+    ├── psd3-compliance-mapping.md
+    ├── pitch-deck-outline.md
+    └── GMAIL_SETUP.md
 ```
 
 ---
 
-## Cloud Run Deployment
+## ☁️ Cloud Run Deployment
 
 ```bash
 # Set your project
@@ -120,24 +265,20 @@ gcloud run deploy sentinelaegis \
   --memory 256Mi \
   --set-env-vars GEMINI_API_KEY=$GEMINI_API_KEY,MODEL_NAME=gemini-1.5-pro
 
-# Get the URL
-gcloud run services describe sentinelaegis --region us-central1 --format='value(status.url)'
+# Or use the deploy script
+./scripts/deploy.sh
 ```
 
 ---
 
 ## API Reference
 
-### `POST /api/analyze`
-Runs all 3 AI agents concurrently and returns the consensus decision.
-
-**Request:**
+### `POST /api/analyze` — Analyze a demo transaction
 ```json
+// Request
 { "transaction_id": "TXN-004" }
-```
 
-**Response:**
-```json
+// Response
 {
   "transaction_id": "TXN-004",
   "consensus": {
@@ -150,70 +291,35 @@ Runs all 3 AI agents concurrently and returns the consensus decision.
       { "agent_name": "timing", "risk_level": "HIGH", "confidence": 0.78, "flags": ["..."] }
     ]
   },
-  "latency_ms": 2340
+  "latency_ms": 2340,
+  "correlation_id": "sa-1714500000000"
 }
 ```
 
-### `GET /api/stats`
-Returns operational metrics.
-```json
-{
-  "total_analyses": 12,
-  "halt_count": 4,
-  "review_count": 3,
-  "approve_count": 5,
-  "avg_latency_ms": 2100,
-  "halt_rate_pct": 33.3,
-  "agents_per_query": 3
-}
-```
+### `POST /api/analyze/custom` — Ad-hoc analysis with custom data
+### `GET /api/stats` — Operational metrics
+### `GET /api/stream` — Real-time SSE event stream
+### `GET /healthz` — Health check
+### `GET /readyz` — Readiness check
 
-### `GET /api/transactions`
-Returns the 5 demo transaction scenarios.
-
-### `GET /health`
-Health check for Cloud Run.
+📄 [Full API Specification (OpenAPI 3.1) →](api/openapi/sentinel-aegis.yaml)
 
 ---
 
-## Scalability: How This Handles 1M+ Transactions
+## 🛠️ Built With
 
-SentinelAegis is architected for horizontal scale:
-
-| Challenge | Solution |
+| Technology | Purpose |
 |---|---|
-| **Throughput** | Cloud Run auto-scales to N instances. Each instance handles concurrent requests via goroutines. |
-| **Gemini rate limits** | Rule-based fallbacks activate automatically — the system never crashes, just degrades gracefully. |
-| **Latency** | All 3 agents fire in parallel (fan-out). Total latency = max(agent1, agent2, agent3), not sum. |
-| **Cost** | ~$0.02 per analysis (3 Gemini calls). At 1M transactions/month: ~$20K — cheaper than one fraud loss. |
-| **New agents** | The consensus engine accepts N agents. Add sanctions screening, geolocation, or network analysis without changing the core. |
-| **Compliance** | PSD3 (EU 2026) mandates Verification of Payee. SentinelAegis provides the AI layer for automated compliance. |
+| **Google Gemini 1.5 Pro** | AI analysis backbone for all 3 agents |
+| **Google Cloud Run** | Serverless deployment with auto-scaling |
+| **Gmail API + Pub/Sub** | Real-time email ingestion for autonomous monitoring |
+| **Go 1.22** | Zero-framework backend (stdlib only) |
+| **Antigravity IDE** | Development, testing, and deployment environment |
+| **Server-Sent Events** | Real-time dashboard updates |
 
 ---
 
-## Project Structure
-
-```
-sentinelAegis/
-├── main.go                 ← HTTP server, CORS, routing, metrics
-├── go.mod                  ← Zero external dependencies
-├── Dockerfile              ← Multi-stage build, 15MB image
-├── agents/
-│   ├── gemini.go           ← Shared Gemini REST client
-│   ├── consensus.go        ← 2-of-3 voting engine + types
-│   ├── consensus_test.go   ← 8 table-driven tests
-│   ├── email_tone.go       ← Email language analysis (Gemini)
-│   ├── iban_change.go      ← IBAN change detection (Gemini + rules)
-│   └── timing.go           ← Timing anomaly detection (Gemini + rules)
-├── data/
-│   └── transactions.go     ← 5 demo scenarios
-└── frontend/
-    └── index.html          ← Dashboard (HTML + CSS + JS, single file)
-```
-
----
-
-## Team
+## 👥 Team
 
 | Name | Role |
 |---|---|
@@ -226,7 +332,7 @@ sentinelAegis/
 
 ---
 
-## License
+## 📄 License
 
 MIT License — see [LICENSE](LICENSE) for details.
 
