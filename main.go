@@ -507,6 +507,40 @@ func analyzeCustomHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// sendRealEmailHandler dispatches an actual email to the monitored inbox for end-to-end live testing.
+// POST /api/send-real-email
+func sendRealEmailHandler(w http.ResponseWriter, r *http.Request) {
+	if !gmailEnabled || gmailClient == nil || monitoredEmail == "" {
+		writeError(w, http.StatusServiceUnavailable, "Gmail integration is not configured. Cannot send real emails.")
+		return
+	}
+
+	var req customAnalyzeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
+
+	if req.EmailBody == "" {
+		writeError(w, http.StatusBadRequest, "email_body is required")
+		return
+	}
+
+	subject := fmt.Sprintf("URGENT: Wire Transfer Update - %s", req.VendorName)
+	body := fmt.Sprintf("Vendor: %s\nAmount: %.2f %s\nTransaction ID: %s\n\n%s", 
+		req.VendorName, req.Amount, req.Currency, fmt.Sprintf("SYS-INJ-%d", time.Now().UnixMilli()), req.EmailBody)
+
+	err := gmailClient.SendTestEmail(monitoredEmail, subject, body)
+	if err != nil {
+		logger.Error("failed_to_send_real_email", slog.String("error", err.Error()))
+		writeError(w, http.StatusInternalServerError, "Failed to dispatch email: "+err.Error())
+		return
+	}
+
+	logger.Info("dispatched_real_email", slog.String("to", monitoredEmail), slog.String("vendor", req.VendorName))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "email_sent_to_inbox", "message": "Email dispatched! Waiting for Pub/Sub webhook to trigger analysis..."})
+}
+
 // haltHandler manually halts a specific transaction.
 // POST /api/halt/{id}
 func haltHandler(w http.ResponseWriter, r *http.Request) {
@@ -671,40 +705,6 @@ func main() {
 	mux.HandleFunc("GET /health", healthHandler)
 	mux.HandleFunc("GET /readyz", readyHandler)
 	mux.HandleFunc("GET /metrics", middleware.MetricsHandler)
-
-// sendRealEmailHandler dispatches an actual email to the monitored inbox for end-to-end live testing.
-// POST /api/send-real-email
-func sendRealEmailHandler(w http.ResponseWriter, r *http.Request) {
-	if !gmailEnabled || gmailClient == nil || monitoredEmail == "" {
-		writeError(w, http.StatusServiceUnavailable, "Gmail integration is not configured. Cannot send real emails.")
-		return
-	}
-
-	var req customAnalyzeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid JSON body")
-		return
-	}
-
-	if req.EmailBody == "" {
-		writeError(w, http.StatusBadRequest, "email_body is required")
-		return
-	}
-
-	subject := fmt.Sprintf("URGENT: Wire Transfer Update - %s", req.VendorName)
-	body := fmt.Sprintf("Vendor: %s\nAmount: %.2f %s\nTransaction ID: %s\n\n%s", 
-		req.VendorName, req.Amount, req.Currency, fmt.Sprintf("SYS-INJ-%d", time.Now().UnixMilli()), req.EmailBody)
-
-	err := gmailClient.SendTestEmail(monitoredEmail, subject, body)
-	if err != nil {
-		logger.Error("failed_to_send_real_email", slog.String("error", err.Error()))
-		writeError(w, http.StatusInternalServerError, "Failed to dispatch email: "+err.Error())
-		return
-	}
-
-	logger.Info("dispatched_real_email", slog.String("to", monitoredEmail), slog.String("vendor", req.VendorName))
-	writeJSON(w, http.StatusOK, map[string]string{"status": "email_sent_to_inbox", "message": "Email dispatched! Waiting for Pub/Sub webhook to trigger analysis..."})
-}
 
 	// API routes
 	mux.HandleFunc("GET /api/stats", statsHandler)
