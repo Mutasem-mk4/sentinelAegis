@@ -85,6 +85,19 @@ func (c *GmailClient) WatchInbox(projectID, topicName string) error {
 	return nil
 }
 
+// SendTestEmail sends an email to a recipient using the connected Gmail account.
+func (c *GmailClient) SendTestEmail(to, subject, body string) error {
+	msgStr := fmt.Sprintf("To: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=\"utf-8\"\r\n\r\n%s", to, subject, body)
+	msgRaw := base64.URLEncoding.EncodeToString([]byte(msgStr))
+	_, err := c.service.Users.Messages.Send(c.userID, &gapi.Message{
+		Raw: msgRaw,
+	}).Do()
+	if err != nil {
+		return fmt.Errorf("failed to send test email: %w", err)
+	}
+	return nil
+}
+
 // GetMessage fetches a full email message by ID and extracts key fields.
 func (c *GmailClient) GetMessage(messageID string) (*types.EmailData, error) {
 	msg, err := c.service.Users.Messages.Get(c.userID, messageID).Format("full").Do()

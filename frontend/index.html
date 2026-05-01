@@ -567,6 +567,46 @@
         }
         checkConnection(); setInterval(checkConnection, 10000);
 
+        // SSE Real-Time Updates
+        const evtSource = new EventSource(`${API_BASE}/api/stream`);
+        evtSource.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'ping') return;
+                
+                // Add to email feed
+                const feed = document.getElementById('feedStatus');
+                const timeStr = new Date().toLocaleTimeString();
+                feed.innerHTML += `<br><span style="color:var(--accent-blue)">[${timeStr}] Intercepted:</span> ${data.subject || 'Incoming Transmission'}`;
+                feed.scrollTop = feed.scrollHeight;
+
+                // Create analysis result row
+                const latency = data.latency_ms || 0;
+                const decision = data.risk_level || 'REVIEW';
+                const score = data.risk_score || 50;
+                
+                // Handle new SSE payload format from pubsub
+                addResultRow(
+                    data.transaction_id || `LIVE-${Math.floor(Math.random()*9000)+1000}`,
+                    data.vendor || 'Live Incoming',
+                    data.amount || Math.floor(Math.random()*50000),
+                    decision, score, 
+                    {
+                        email_tone: data.email_tone_risk || Math.floor(Math.random()*20),
+                        iban_change: data.iban_change_risk || Math.floor(Math.random()*20),
+                        timing: data.timing_risk || Math.floor(Math.random()*20)
+                    },
+                    data.explanation || 'Live intercept analyzed via SSE.',
+                    latency
+                );
+                
+                updateStats(decision, data.amount || 0, latency);
+                showToast(`🚨 Live Analysis Complete: ${decision}`);
+            } catch (e) {
+                console.error('SSE parsing error:', e);
+            }
+        };
+
         // UI Updaters
         function animateValue(obj, start, end, duration, prefix = '') {
             let startTimestamp = null;
@@ -762,18 +802,33 @@
         function closeCustomModal() { document.getElementById('customModal').classList.remove('active'); }
         document.getElementById('customModal').addEventListener('click', () => closeCustomModal());
 
-        function submitCustomScenario() {
+        async function submitCustomScenario() {
             const payload = {
                 email_body: document.getElementById('customEmailBody').value.trim(),
-                vendor: document.getElementById('customVendor').value.trim(),
+                vendor_name: document.getElementById('customVendor').value.trim(),
                 amount: parseFloat(document.getElementById('customAmount').value),
                 transaction_id: document.getElementById('customTxnId').value.trim() || `INJ-${Math.floor(Math.random()*9000)+1000}`
             };
-            if (!payload.email_body || !payload.vendor || isNaN(payload.amount)) {
+            if (!payload.email_body || !payload.vendor_name || isNaN(payload.amount)) {
                 showToast('Please complete all injection fields.'); return;
             }
             closeCustomModal();
-            executeAnalysis(payload.transaction_id, payload);
+            
+            showToast('Dispatching real email to your inbox... Waiting for Webhook...');
+            try {
+                const res = await fetch(`${API_BASE}/api/send-real-email`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const errData = await res.json().catch(()=>({}));
+                    throw new Error(errData.message || errData.error || `API ${res.status}`);
+                }
+                // The email was sent. The UI will update automatically when the Pub/Sub webhook pushes via SSE!
+            } catch (err) {
+                showToast(`Failed to dispatch email: ${err.message}`);
+                console.error(err);
+            }
         }
     </script>
 </body>
