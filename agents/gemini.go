@@ -30,6 +30,7 @@ type geminiPart struct {
 type geminiGenConfig struct {
 	Temperature     float64 `json:"temperature"`
 	MaxOutputTokens int     `json:"maxOutputTokens"`
+	ResponseMimeType string  `json:"responseMimeType,omitempty"`
 }
 
 type geminiResponse struct {
@@ -79,8 +80,9 @@ func CallGemini(userText, systemPrompt string) (*GeminiResult, error) {
 			{Parts: []geminiPart{{Text: userText}}},
 		},
 		GenerationConfig: &geminiGenConfig{
-			Temperature:     0.2,
-			MaxOutputTokens: 500,
+			Temperature:      0.2,
+			MaxOutputTokens:  500,
+			ResponseMimeType: "application/json",
 		},
 	}
 
@@ -128,6 +130,7 @@ func CallGemini(userText, systemPrompt string) (*GeminiResult, error) {
 
 	var result GeminiResult
 	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		fmt.Printf("Gemini parsing error. Raw string was: %s\n", raw)
 		return nil, fmt.Errorf("failed to parse JSON from Gemini: %w", err)
 	}
 
