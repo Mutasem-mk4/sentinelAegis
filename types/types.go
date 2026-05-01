@@ -14,12 +14,15 @@ type EmailData struct {
 
 // AnalysisEvent is broadcast via SSE to connected dashboard clients.
 type AnalysisEvent struct {
-	EventType   string                 `json:"event_type"` // email_received, analyzing, agent_result, consensus
-	Timestamp   string                 `json:"timestamp"`
-	Email       EmailData              `json:"email"`
-	AgentResult *agents.AgentResult    `json:"agent_result,omitempty"`
-	Consensus   *agents.ConsensusResult `json:"consensus,omitempty"`
-	AgentIndex  int                    `json:"agent_index,omitempty"`
-	RiskLevel   string                 `json:"risk_level,omitempty"`
-	LatencyMs   int64                  `json:"latency_ms,omitempty"`
+	EventType     string                 `json:"event_type"` // email_received, analyzing, agent_result, consensus
+	Timestamp     string                 `json:"timestamp"`
+	Email         EmailData              `json:"email"`
+	TransactionID string                 `json:"transaction_id,omitempty"`
+	Vendor        string                 `json:"vendor,omitempty"`
+	Amount        float64                `json:"amount,omitempty"`
+	AgentResult   *agents.AgentResult    `json:"agent_result,omitempty"`
+	Consensus     *agents.ConsensusResult `json:"consensus,omitempty"`
+	AgentIndex    int                    `json:"agent_index,omitempty"`
+	RiskLevel     string                 `json:"risk_level,omitempty"`
+	LatencyMs     int64                  `json:"latency_ms,omitempty"`
 }

@@ -77,12 +77,15 @@ func AnalyzeEmail(email types.EmailData) types.AnalysisEvent {
 	log.Printf("[GMAIL] %s → %s (score: %d, latency: %dms)", email.Subject, consensus.Decision, consensus.RiskScore, latency)
 
 	return types.AnalysisEvent{
-		EventType: "consensus",
-		Timestamp: time.Now().Format(time.RFC3339),
-		Email:     email,
-		Consensus: &consensus,
-		RiskLevel: consensus.Decision,
-		LatencyMs: latency,
+		EventType:     "consensus",
+		Timestamp:     time.Now().Format(time.RFC3339),
+		Email:         email,
+		TransactionID: customID,
+		Vendor:        vendor,
+		Amount:        amount,
+		Consensus:     &consensus,
+		RiskLevel:     consensus.Decision,
+		LatencyMs:     latency,
 	}
 }
 

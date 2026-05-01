@@ -577,26 +577,31 @@
                 // Add to email feed
                 const feed = document.getElementById('feedStatus');
                 const timeStr = new Date().toLocaleTimeString();
-                feed.innerHTML += `<br><span style="color:var(--accent-blue)">[${timeStr}] Intercepted:</span> ${data.subject || 'Incoming Transmission'}`;
+                feed.innerHTML += `<br><span style="color:var(--accent-blue)">[${timeStr}] Intercepted:</span> ${data.email?.subject || 'Incoming Transmission'}`;
                 feed.scrollTop = feed.scrollHeight;
 
                 // Create analysis result row
                 const latency = data.latency_ms || 0;
-                const decision = data.risk_level || 'REVIEW';
-                const score = data.risk_score || 50;
+                const decision = data.risk_level || data.consensus?.decision || 'REVIEW';
+                const score = data.consensus?.risk_score || 50;
                 
-                // Handle new SSE payload format from pubsub
+                const bd = { email_tone: 10, iban_change: 10, timing: 10 };
+                if (data.consensus && data.consensus.agent_breakdown) {
+                    data.consensus.agent_breakdown.forEach(a => {
+                        const scoreVal = Math.round(a.confidence * 100);
+                        if (a.agent_name === 'email_tone') bd.email_tone = scoreVal;
+                        if (a.agent_name === 'iban_change') bd.iban_change = scoreVal;
+                        if (a.agent_name === 'timing') bd.timing = scoreVal;
+                    });
+                }
+                
                 addResultRow(
                     data.transaction_id || `LIVE-${Math.floor(Math.random()*9000)+1000}`,
                     data.vendor || 'Live Incoming',
                     data.amount || Math.floor(Math.random()*50000),
                     decision, score, 
-                    {
-                        email_tone: data.email_tone_risk || Math.floor(Math.random()*20),
-                        iban_change: data.iban_change_risk || Math.floor(Math.random()*20),
-                        timing: data.timing_risk || Math.floor(Math.random()*20)
-                    },
-                    data.explanation || 'Live intercept analyzed via SSE.',
+                    bd,
+                    data.consensus?.explanation || 'Live intercept analyzed via SSE.',
                     latency
                 );
                 
@@ -756,22 +761,25 @@
                 const data = await res.json();
                 
                 const latency = Date.now() - start;
-                const decision = data.consensus_decision || data.decision || 'APPROVE';
-                const score = data.risk_score ?? 0;
+                const decision = data.consensus?.decision || data.consensus_decision || data.decision || 'APPROVE';
+                const score = data.consensus?.risk_score || data.risk_score || 0;
                 
-                const agentData = data.audit_agent || {};
-                const bd = {
-                    email_tone: agentData.email_tone_risk || Math.floor(Math.random()*20),
-                    iban_change: agentData.iban_change_risk || Math.floor(Math.random()*20),
-                    timing: agentData.timing_risk || Math.floor(Math.random()*20)
-                };
+                const bd = { email_tone: 10, iban_change: 10, timing: 10 };
+                if (data.consensus && data.consensus.agent_breakdown) {
+                    data.consensus.agent_breakdown.forEach(a => {
+                        const scoreVal = Math.round(a.confidence * 100);
+                        if (a.agent_name === 'email_tone') bd.email_tone = scoreVal;
+                        if (a.agent_name === 'iban_change') bd.iban_change = scoreVal;
+                        if (a.agent_name === 'timing') bd.timing = scoreVal;
+                    });
+                }
                 
                 addResultRow(
                     data.transaction_id || txnId,
                     data.vendor || payload?.vendor || 'Unknown Source',
                     data.amount || payload?.amount || Math.floor(Math.random()*50000),
                     decision, score, bd,
-                    agentData.explanation || data.threat_hunting?.explanation || '',
+                    data.consensus?.explanation || data.threat_hunting?.explanation || '',
                     latency
                 );
                 
