@@ -613,11 +613,11 @@ func main() {
 	// ── Routes ──────────────────────────────────────────
 	mux := http.NewServeMux()
 
-	// Health & readiness (no rate limit — used by Cloud Run)
-	mux.HandleFunc("GET /healthz", healthHandler)
-	mux.HandleFunc("GET /readyz", readyHandler)
+	// Health & readiness (no rate limit — used by Cloud Run probes)
+	mux.HandleFunc("/healthz", healthHandler)
+	mux.HandleFunc("/readyz", readyHandler)
 	// Backwards compatibility
-	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("/health", healthHandler)
 
 	// API routes
 	mux.HandleFunc("GET /api/stats", statsHandler)
@@ -637,9 +637,9 @@ func main() {
 		}
 	})
 
-	// Static files
+	// Static files — registered as catch-all (lowest priority)
 	fs := http.FileServer(http.Dir("frontend"))
-	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
