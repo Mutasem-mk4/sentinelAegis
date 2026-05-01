@@ -3,254 +3,460 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SentinelAegis SOC Dashboard</title>
+    <title>SentinelAegis SOC</title>
     <style>
         :root {
-            --bg-color: #0d1117;
-            --panel-bg: #161b22;
-            --border-color: #30363d;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --accent-yellow: #d29922;
-            --accent-red: #f85149;
-            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            --font-mono: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+            --bg-primary: #0a0e14;
+            --bg-secondary: #12171f;
+            --bg-card: #181e28;
+            --border: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
-            font-family: var(--font-family);
-            background-color: var(--bg-color);
+            background: var(--bg-primary);
             color: var(--text-primary);
+            font-family: var(--font-sans);
             line-height: 1.5;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            min-height: 100vh;
         }
 
-        /* ── HEADER ── */
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 24px 32px;
+        }
+
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 24px;
-            background-color: var(--panel-bg);
-            border-bottom: 1px solid var(--border-color);
-            height: 60px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 28px;
         }
-        .logo-area { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.25rem; letter-spacing: -0.5px; }
-        .logo-icon { color: var(--accent-blue); font-size: 1.5rem; }
-        
-        .status-badge {
+
+        .logo-area h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #e2e8f0 0%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .monitoring-badge {
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 6px 12px;
-            border-radius: 9999px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            background-color: rgba(63, 185, 80, 0.1);
-            color: var(--accent-green);
-            border: 1px solid rgba(63, 185, 80, 0.2);
-            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            padding: 8px 16px;
+            border-radius: 100px;
+            border: 1px solid var(--border);
         }
-        .status-badge.disconnected {
-            background-color: rgba(248, 81, 73, 0.1);
-            color: var(--accent-red);
-            border-color: rgba(248, 81, 73, 0.2);
-        }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; background-color: currentColor; }
-        .status-badge:not(.disconnected) .status-dot { animation: pulse 2s infinite; }
 
-        /* ── STATS BAR ── */
-        .stats-bar {
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.disconnected {
+            background: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .stat-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 16px;
-            padding: 16px 24px;
-            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
         }
+
         .stat-card {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 16px;
-            transition: transform 0.2s, border-color 0.2s;
-        }
-        .stat-card:hover { border-color: var(--accent-blue); transform: translateY(-2px); }
-        .stat-title { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px; }
-        .stat-value { font-family: var(--font-mono); font-size: 1.75rem; font-weight: 700; color: #fff; transition: color 0.3s; }
-        .stat-value.flash { color: var(--accent-green); }
-
-        /* ── MAIN LAYOUT ── */
-        .main-content {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 16px;
-            padding: 16px 24px;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        /* ── LEFT PANEL (FEED & CONTROLS) ── */
-        .left-panel { display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
-        
-        .controls {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
         }
-        .btn {
-            padding: 10px 16px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background-color: #21262d;
-            color: var(--text-primary);
-            font-size: 0.85rem;
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
             font-weight: 600;
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
             cursor: pointer;
-            transition: 0.2s;
-            text-align: center;
-        }
-        .btn:hover:not(:disabled) { background-color: #30363d; border-color: #8b949e; }
-        .btn-primary { background-color: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
-        .btn-primary:hover:not(:disabled) { background-color: #1f6feb; border-color: #1f6feb; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .feed-panel {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            flex: 1;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+            font-family: var(--font-sans);
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #0a0e14;
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            background: #2bb0e6;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border-color: var(--border);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card);
+            border-color: var(--text-secondary);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
             overflow: hidden;
         }
-        .panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border-color); font-weight: 600; font-size: 0.9rem; }
-        .feed-list { padding: 12px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
-        .empty-feed { color: var(--text-secondary); text-align: center; margin-top: 40px; font-size: 0.85rem; font-style: italic; }
 
-        .feed-item {
-            padding: 10px;
-            border-radius: 6px;
-            background-color: #21262d;
-            border: 1px solid var(--border-color);
-            font-size: 0.8rem;
-            animation: slideIn 0.3s ease-out;
-            border-left: 3px solid var(--border-color);
+        table {
+            width: 100%;
+            border-collapse: collapse;
         }
-        .feed-item.analyzing { border-left-color: var(--accent-blue); }
-        .feed-item.HALT { border-left-color: var(--accent-red); background-color: rgba(248, 81, 73, 0.05); }
-        .feed-item.REVIEW { border-left-color: var(--accent-yellow); }
-        .feed-item.APPROVE { border-left-color: var(--accent-green); }
 
-        /* ── RIGHT PANEL (TABLE) ── */
-        .right-panel {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .table-container { flex: 1; overflow-y: auto; }
-        table { width: 100%; border-collapse: collapse; text-align: left; }
         th {
-            position: sticky; top: 0; background-color: #161b22; z-index: 10;
-            padding: 12px 16px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary);
-            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+            padding: 14px 20px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
         }
-        td { padding: 14px 16px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; vertical-align: top; }
-        
-        .row-main:hover { background-color: rgba(255,255,255,0.02); cursor: pointer; }
-        .row-details { background-color: #0d1117; display: none; }
-        .row-details.open { display: table-row; }
-        
-        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
-        .badge.HALT { background: rgba(248,81,73,0.15); color: var(--accent-red); border: 1px solid rgba(248,81,73,0.3); }
-        .badge.REVIEW { background: rgba(210,153,34,0.15); color: var(--accent-yellow); border: 1px solid rgba(210,153,34,0.3); }
-        .badge.APPROVE { background: rgba(63,185,80,0.15); color: var(--accent-green); border: 1px solid rgba(63,185,80,0.3); }
 
-        .agent-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 16px 0; }
-        .agent-card { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; }
-        .agent-title { font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; }
-        .agent-explanation { font-size: 0.8rem; color: var(--text-primary); margin-top: 8px; font-style: italic; }
+        td {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
 
-        /* ── MODALS & TOASTS ── */
-        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
-        .modal.open { display: flex; }
-        .modal-content { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; width: 500px; padding: 24px; }
-        .modal-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
-        .form-group { margin-bottom: 16px; }
-        .form-group label { display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; }
-        .form-group input, .form-group textarea { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #c9d1d9; padding: 8px 12px; border-radius: 6px; font-family: var(--font-family); }
-        .form-group textarea { height: 100px; resize: vertical; }
+        tr:last-child td {
+            border-bottom: none;
+        }
 
-        #toast { position: fixed; bottom: 24px; right: 24px; background: var(--accent-red); color: white; padding: 12px 24px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; transform: translateY(100px); opacity: 0; transition: 0.3s; z-index: 9999; }
-        #toast.show { transform: translateY(0); opacity: 1; }
+        .badge {
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            display: inline-block;
+        }
 
-        @keyframes pulse { 0% { opacity: 1; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.4); } 70% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(63, 185, 80, 0); } 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); } }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-        
-        .flash-red-screen { animation: flashRed 0.5s ease-out; }
-        @keyframes flashRed { 0% { box-shadow: inset 0 0 100px rgba(248,81,73,0.5); } 100% { box-shadow: inset 0 0 0 transparent; } }
+        .badge-halt {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .badge-review {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-approve {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .expand-row {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .expand-icon {
+            display: inline-block;
+            transition: transform 0.2s ease;
+            margin-right: 6px;
+        }
+
+        .expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+
+        .detail-row {
+            display: none;
+            background: var(--bg-secondary);
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .detail-row.show {
+            display: block;
+        }
+
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .agent-card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 14px;
+            border: 1px solid var(--border);
+        }
+
+        .agent-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            font-size: 0.8rem;
+        }
+
+        .risk-bar-bg {
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .risk-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .risk-high { background: var(--danger); }
+        .risk-mid { background: var(--warning); }
+        .risk-low { background: var(--success); }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--danger);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            width: 90%;
+            max-width: 520px;
+        }
+
+        .modal h2 {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+        }
+
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .email-feed {
+            margin-top: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .email-feed .title {
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.75rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        @media (max-width: 900px) {
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .action-bar {
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
+    <div class="container">
+        <header>
+            <div class="logo-area">
+                <h1>SentinelAegis</h1>
+            </div>
+            <div class="monitoring-badge">
+                <span class="status-indicator" id="connIndicator"></span>
+                <span>Monitoring: kharma.mutasem@gmail.com</span>
+            </div>
+        </header>
 
-<header>
-    <div class="logo-area">
-        <span class="logo-icon">🛡️</span> SentinelAegis SOC
-    </div>
-    <div class="status-badge disconnected" id="conn-status">
-        <div class="status-dot"></div> <span id="conn-text">DISCONNECTED</span>
-    </div>
-</header>
-
-<div class="stats-bar">
-    <div class="stat-card">
-        <div class="stat-title">Emails Analyzed</div>
-        <div class="stat-value" id="stat-count">0</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-title">Amount Screened</div>
-        <div class="stat-value" id="stat-amount">$0</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-title">Threats Blocked</div>
-        <div class="stat-value" id="stat-threats">0</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-title">Avg Response</div>
-        <div class="stat-value" id="stat-latency">0 ms</div>
-    </div>
-</div>
-
-<div class="main-content">
-    <div class="left-panel">
-        <div class="controls">
-            <button class="btn btn-primary" id="btn-run-all" onclick="runAllScenarios()">🚀 Run All 5 Demo Scenarios</button>
-            <button class="btn" onclick="openCustomModal()">🎭 Trigger Custom BEC Scenario</button>
-        </div>
-        
-        <div class="feed-panel">
-            <div class="panel-header">📨 Real-time Mail Ingestion</div>
-            <div class="feed-list" id="feed-list">
-                <div class="empty-feed" id="empty-feed">Awaiting incoming data...</div>
+        <div class="stat-grid">
+            <div class="stat-card">
+                <span class="stat-label">Emails Analyzed</span>
+                <span class="stat-value" id="emailsAnalyzed">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Amount Screened</span>
+                <span class="stat-value" id="amountScreened">$0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Threats Blocked</span>
+                <span class="stat-value" id="threatsBlocked">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Avg Response</span>
+                <span class="stat-value" id="avgResponse">—</span>
             </div>
         </div>
-    </div>
 
-    <div class="right-panel">
-        <div class="panel-header">🚨 Consensus Ledger</div>
+        <div class="action-bar">
+            <button class="btn btn-primary" id="runAllBtn" onclick="runAllScenarios()">
+                ⚡ Run All 5 Demo Scenarios
+            </button>
+            <button class="btn btn-secondary" id="customBtn" onclick="openCustomModal()">
+                🧪 Trigger Custom BEC Scenario
+            </button>
+        </div>
+
         <div class="table-container">
             <table>
                 <thead>
@@ -258,252 +464,298 @@
                         <th>Transaction ID</th>
                         <th>Vendor</th>
                         <th>Amount</th>
-                        <th>Consensus</th>
+                        <th>Decision</th>
                         <th>Risk Score</th>
-                        <th>Latency</th>
                     </tr>
                 </thead>
-                <tbody id="table-body">
-                    <!-- Rows appended dynamically -->
+                <tbody id="resultsBody">
+                    <tr id="emptyRow">
+                        <td colspan="5" style="text-align:center;color:var(--text-secondary);padding:40px;">
+                            No analyses yet. Run a demo scenario to start.
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
-    </div>
-</div>
 
-<!-- Custom Scenario Modal -->
-<div class="modal" id="custom-modal">
-    <div class="modal-content">
-        <div class="modal-title">Trigger Custom Analysis</div>
-        <div class="form-group">
-            <label>Transaction ID</label>
-            <input type="text" id="custom-tx" value="TXN-999">
-        </div>
-        <div class="form-group">
-            <label>Vendor</label>
-            <input type="text" id="custom-vendor" value="Acme Corp">
-        </div>
-        <div class="form-group">
-            <label>Amount (USD)</label>
-            <input type="number" id="custom-amount" value="500000">
-        </div>
-        <div class="form-group">
-            <label>Email Body</label>
-            <textarea id="custom-body">URGENT: Please process this invoice to our new banking details immediately.</textarea>
-        </div>
-        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top: 20px;">
-            <button class="btn" onclick="closeCustomModal()">Cancel</button>
-            <button class="btn btn-primary" id="btn-submit-custom" onclick="submitCustomScenario()">Submit Analysis</button>
-        </div>
-    </div>
-</div>
-
-<div id="toast">Error occurred</div>
-
-<script>
-    let stats = { count: 0, amount: 0, threats: 0, totalLatency: 0 };
-    const API_BASE = '';
-
-    // Initialize Health Check
-    async function checkHealth() {
-        try {
-            const res = await fetch(`${API_BASE}/health`);
-            if (res.ok) {
-                const el = document.getElementById('conn-status');
-                el.classList.remove('disconnected');
-                document.getElementById('conn-text').textContent = 'CONNECTED';
-            }
-        } catch (e) {
-            console.warn('Health check failed', e);
-        }
-    }
-    checkHealth();
-    setInterval(checkHealth, 10000);
-
-    function showToast(msg) {
-        const t = document.getElementById('toast');
-        t.textContent = msg;
-        t.classList.add('show');
-        setTimeout(() => t.classList.remove('show'), 3000);
-    }
-
-    function animateStat(id, newValue, isCurrency = false) {
-        const el = document.getElementById(id);
-        el.textContent = isCurrency ? `$${newValue.toLocaleString()}` : newValue;
-        el.classList.add('flash');
-        setTimeout(() => el.classList.remove('flash'), 300);
-    }
-
-    function updateStats(amount, decision, latency) {
-        stats.count++;
-        stats.amount += amount;
-        if (decision === 'HALT') stats.threats++;
-        stats.totalLatency += latency;
-        
-        animateStat('stat-count', stats.count);
-        animateStat('stat-amount', stats.amount, true);
-        animateStat('stat-threats', stats.threats);
-        animateStat('stat-latency', Math.round(stats.totalLatency / stats.count) + ' ms');
-    }
-
-    function addToFeed(txId, status) {
-        const empty = document.getElementById('empty-feed');
-        if(empty) empty.style.display = 'none';
-        
-        const feed = document.getElementById('feed-list');
-        const item = document.createElement('div');
-        item.className = `feed-item ${status}`;
-        item.id = `feed-${txId}`;
-        item.innerHTML = `<strong>${txId}</strong> - Processing via secure gateway...`;
-        feed.prepend(item);
-    }
-
-    function updateFeed(txId, decision) {
-        const item = document.getElementById(`feed-${txId}`);
-        if(item) {
-            item.className = `feed-item ${decision}`;
-            item.innerHTML = `<strong>${txId}</strong> - Analysis complete: <span class="badge ${decision}">${decision}</span>`;
-            if (decision === 'HALT') {
-                document.body.classList.remove('flash-red-screen');
-                void document.body.offsetWidth; // trigger reflow
-                document.body.classList.add('flash-red-screen');
-            }
-        }
-    }
-
-    function toggleRow(txId) {
-        const details = document.getElementById(`details-${txId}`);
-        if (details) details.classList.toggle('open');
-    }
-
-    function addTableRow(data, amount, vendor) {
-        const tbody = document.getElementById('table-body');
-        const dec = data.consensus.decision;
-        const colorClass = dec === 'HALT' ? 'accent-red' : dec === 'REVIEW' ? 'accent-yellow' : 'accent-green';
-        
-        const row = document.createElement('tr');
-        row.className = 'row-main';
-        row.onclick = () => toggleRow(data.transaction_id);
-        row.innerHTML = `
-            <td><span style="font-family:var(--font-mono)">${data.transaction_id}</span></td>
-            <td>${vendor}</td>
-            <td style="font-family:var(--font-mono)">$${amount.toLocaleString()}</td>
-            <td><span class="badge ${dec}">${dec}</span></td>
-            <td><strong style="color:var(--${colorClass})">${data.consensus.risk_score}</strong>/100</td>
-            <td style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary)">${data.latency_ms}ms</td>
-        `;
-        
-        const agentsHtml = data.consensus.agent_breakdown.map(a => `
-            <div class="agent-card">
-                <div class="agent-title">${a.agent_name.replace('_', ' ')} · ${a.risk_level} RISK</div>
-                <div style="font-family:var(--font-mono); font-size:1.1rem; color:#fff">${(a.confidence*100).toFixed(0)}% CONFIDENCE</div>
-                <div class="agent-explanation">${a.explanation}</div>
+        <div class="email-feed">
+            <div class="title">
+                <span>📨 Live Email Feed</span>
+                <span class="status-indicator" id="feedIndicator"></span>
             </div>
-        `).join('');
+            <span id="feedStatus">Awaiting incoming data...</span>
+        </div>
+    </div>
 
-        const detailsRow = document.createElement('tr');
-        detailsRow.id = `details-${data.transaction_id}`;
-        detailsRow.className = 'row-details';
-        detailsRow.innerHTML = `
-            <td colspan="6" style="padding:0">
-                <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-color);">
-                    <div style="font-weight:600; margin-bottom:8px">Consensus Explanation:</div>
-                    <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px">${data.consensus.explanation}</div>
-                    <div class="agent-grid">${agentsHtml}</div>
+    <div class="toast" id="toast"></div>
+
+    <div class="modal-overlay" id="customModal">
+        <div class="modal">
+            <h2>Custom BEC Scenario</h2>
+            <div class="form-group">
+                <label>Email Body (suspicious content)</label>
+                <textarea id="customEmailBody" placeholder="e.g., 'Urgent wire transfer needed, change account to...'"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Vendor Name</label>
+                <input type="text" id="customVendor" placeholder="e.g., Greenfield Solutions">
+            </div>
+            <div class="form-group">
+                <label>Amount ($)</label>
+                <input type="number" id="customAmount" placeholder="500000" step="1">
+            </div>
+            <div class="form-group">
+                <label>Transaction ID</label>
+                <input type="text" id="customTxnId" placeholder="CUSTOM-001">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeCustomModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCustomScenario()">Analyze Now</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let emailsAnalyzed = 0;
+        let amountScreened = 0;
+        let threatsBlocked = 0;
+        let totalLatency = 0;
+        let analysisCount = 0;
+
+        async function checkConnection() {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                const connected = res.ok;
+                document.getElementById('connIndicator').className = `status-indicator ${connected ? '' : 'disconnected'}`;
+                document.getElementById('feedIndicator').className = `status-indicator ${connected ? '' : 'disconnected'}`;
+                document.getElementById('feedStatus').textContent = connected ? 'Receiving live feed...' : 'Connection lost — retrying...';
+            } catch (e) {
+                document.getElementById('connIndicator').className = 'status-indicator disconnected';
+                document.getElementById('feedIndicator').className = 'status-indicator disconnected';
+                document.getElementById('feedStatus').textContent = 'Awaiting incoming data...';
+            }
+        }
+        checkConnection();
+        setInterval(checkConnection, 10000);
+
+        function updateStats(decision, amount, latencyMs) {
+            emailsAnalyzed++;
+            amountScreened += amount;
+            if (decision === 'HALT') threatsBlocked++;
+            totalLatency += latencyMs;
+            analysisCount++;
+            const avg = analysisCount > 0 ? Math.round(totalLatency / analysisCount) : 0;
+
+            document.getElementById('emailsAnalyzed').textContent = emailsAnalyzed;
+            document.getElementById('amountScreened').textContent = '$' + amountScreened.toLocaleString();
+            document.getElementById('threatsBlocked').textContent = threatsBlocked;
+            document.getElementById('avgResponse').textContent = avg > 0 ? avg + 'ms' : '—';
+
+            ['emailsAnalyzed','amountScreened','threatsBlocked'].forEach(id => {
+                const el = document.getElementById(id);
+                el.style.transform = 'scale(1.1)';
+                setTimeout(() => el.style.transform = 'scale(1)', 200);
+            });
+        }
+
+        function formatDecision(decision) {
+            if (decision === 'HALT') return '<span class="badge badge-halt">🔴 HALT</span>';
+            if (decision === 'REVIEW') return '<span class="badge badge-review">🟡 REVIEW</span>';
+            return '<span class="badge badge-approve">🟢 APPROVE</span>';
+        }
+
+        function getRiskColor(score) {
+            if (score >= 80) return 'risk-high';
+            if (score >= 40) return 'risk-mid';
+            return 'risk-low';
+        }
+
+        function addResultRow(txnId, vendor, amount, decision, riskScore, breakdown, explanation, latencyMs) {
+            const tbody = document.getElementById('resultsBody');
+            if (document.getElementById('emptyRow')) tbody.innerHTML = '';
+
+            const rowId = `row-${txnId}`;
+            const detailId = `detail-${txnId}`;
+
+            const tr = document.createElement('tr');
+            tr.id = rowId;
+            tr.className = 'expand-row';
+            tr.onclick = () => toggleDetail(detailId);
+            tr.innerHTML = `
+                <td><span class="expand-icon">▶</span> ${txnId}</td>
+                <td>${vendor}</td>
+                <td>$${amount.toLocaleString()}</td>
+                <td>${formatDecision(decision)}</td>
+                <td>${riskScore}/100</td>
+            `;
+            tbody.appendChild(tr);
+
+            const detailDiv = document.createElement('div');
+            detailDiv.id = detailId;
+            detailDiv.className = 'detail-row';
+            detailDiv.innerHTML = `
+                <div class="agent-grid">
+                    <div class="agent-card">
+                        <div class="agent-name">📧 Email Tone Risk</div>
+                        <div style="font-size:1.5rem;font-weight:700;">${breakdown.email_tone}%</div>
+                        <div class="risk-bar-bg"><div class="risk-bar-fill ${getRiskColor(breakdown.email_tone)}" style="width:${breakdown.email_tone}%"></div></div>
+                    </div>
+                    <div class="agent-card">
+                        <div class="agent-name">🏦 IBAN Change Risk</div>
+                        <div style="font-size:1.5rem;font-weight:700;">${breakdown.iban_change}%</div>
+                        <div class="risk-bar-bg"><div class="risk-bar-fill ${getRiskColor(breakdown.iban_change)}" style="width:${breakdown.iban_change}%"></div></div>
+                    </div>
+                    <div class="agent-card">
+                        <div class="agent-name">⏱️ Timing Anomaly</div>
+                        <div style="font-size:1.5rem;font-weight:700;">${breakdown.timing}%</div>
+                        <div class="risk-bar-bg"><div class="risk-bar-fill ${getRiskColor(breakdown.timing)}" style="width:${breakdown.timing}%"></div></div>
+                    </div>
                 </div>
-            </td>
-        `;
-        
-        tbody.prepend(detailsRow);
-        tbody.prepend(row);
-    }
-
-    async function analyzeTx(txId, amount, vendor) {
-        addToFeed(txId, 'analyzing');
-        try {
-            const res = await fetch(`${API_BASE}/api/analyze`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ transaction_id: txId })
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            
-            updateFeed(txId, data.consensus.decision);
-            addTableRow(data, amount, vendor);
-            updateStats(amount, data.consensus.decision, data.latency_ms);
-            
-        } catch (e) {
-            console.error(e);
-            showToast(`Analysis failed for ${txId}`);
-            updateFeed(txId, 'ERROR');
-        }
-    }
-
-    async function runAllScenarios() {
-        const btn = document.getElementById('btn-run-all');
-        btn.disabled = true;
-        btn.textContent = '⏳ Processing...';
-        
-        const demos = [
-            { id: 'TXN-001', vendor: 'Global Tech', amount: 1500 },
-            { id: 'TXN-002', vendor: 'Delta Supplies', amount: 125000 },
-            { id: 'TXN-003', vendor: 'Marketing Partners', amount: 12000 },
-            { id: 'TXN-004', vendor: 'Greenfield Solutions', amount: 847000 },
-            { id: 'TXN-005', vendor: 'SecureHost LLC', amount: 450 }
-        ];
-
-        for (const tx of demos) {
-            await analyzeTx(tx.id, tx.amount, tx.vendor);
-            await new Promise(r => setTimeout(r, 1000));
+                <div style="margin-top:12px;">
+                    <strong>Analysis:</strong> ${explanation || 'See agent breakdown above.'}
+                </div>
+                <div style="margin-top:8px;color:var(--text-secondary);">
+                    Latency: ${latencyMs}ms
+                </div>
+            `;
+            const detailTr = document.createElement('tr');
+            const detailTd = document.createElement('td');
+            detailTd.colSpan = 5;
+            detailTd.style.padding = '0';
+            detailTd.appendChild(detailDiv);
+            detailTr.appendChild(detailTd);
+            tbody.appendChild(detailTr);
         }
 
-        btn.disabled = false;
-        btn.textContent = '🚀 Run All 5 Demo Scenarios';
-    }
+        function toggleDetail(detailId) {
+            const detail = document.getElementById(detailId);
+            if (!detail) return;
+            detail.classList.toggle('show');
+            const row = detail.parentElement.parentElement.previousElementSibling;
+            if (row && row.classList.contains('expand-row')) row.classList.toggle('expanded');
+        }
 
-    function openCustomModal() { document.getElementById('custom-modal').classList.add('open'); }
-    function closeCustomModal() { document.getElementById('custom-modal').classList.remove('open'); }
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
 
-    async function submitCustomScenario() {
-        const btn = document.getElementById('btn-submit-custom');
-        const txId = document.getElementById('custom-tx').value || 'TXN-CUST';
-        const vendor = document.getElementById('custom-vendor').value || 'Unknown';
-        const amount = parseInt(document.getElementById('custom-amount').value) || 0;
-        const bodyText = document.getElementById('custom-body').value;
+        async function analyzeTransaction(txnId, payload = null) {
+            const start = Date.now();
+            try {
+                const body = payload || { transaction_id: txnId };
+                const res = await fetch(`${API_BASE}/api/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || `API error ${res.status}`);
+                }
+                const data = await res.json();
+                const latency = Date.now() - start;
+                const breakdown = {
+                    email_tone: data.audit_agent?.email_tone_risk || 0,
+                    iban_change: data.audit_agent?.iban_change_risk || 0,
+                    timing: data.audit_agent?.timing_risk || 0
+                };
+                const explanation = data.audit_agent?.explanation || data.threat_hunting?.explanation || '';
+                addResultRow(
+                    data.transaction_id || txnId,
+                    data.vendor || 'Unknown',
+                    data.amount || 0,
+                    data.consensus_decision || data.decision,
+                    data.risk_score ?? 0,
+                    breakdown,
+                    explanation,
+                    latency
+                );
+                updateStats(data.consensus_decision || data.decision, data.amount || 0, latency);
+            } catch (error) {
+                showToast(`Error on ${txnId}: ${error.message}`);
+                console.error(error);
+            }
+        }
 
-        btn.disabled = true;
-        closeCustomModal();
-        addToFeed(txId, 'analyzing');
+        async function runAllScenarios() {
+            const btn = document.getElementById('runAllBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Running scenarios...';
+            const txns = ['TXN-001','TXN-002','TXN-003','TXN-004','TXN-005'];
+            document.getElementById('resultsBody').innerHTML = `<tr id="emptyRow"><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:40px;">Running scenarios...</td></tr>`;
 
-        try {
-            const res = await fetch(`${API_BASE}/api/analyze/custom`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email_body: bodyText,
-                    vendor_name: vendor,
-                    amount: amount,
-                    current_iban: 'GB29NWBK60161331926819',
-                    iban_changed_hours_ago: 2
-                })
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            
-            data.transaction_id = txId; // Ensure ID matches
-            updateFeed(txId, data.consensus.decision);
-            addTableRow(data, amount, vendor);
-            updateStats(amount, data.consensus.decision, data.latency_ms);
-            
-        } catch (e) {
-            console.error(e);
-            showToast(`Custom analysis failed`);
-            updateFeed(txId, 'ERROR');
-        } finally {
+            for (const txn of txns) {
+                await analyzeTransaction(txn);
+                await new Promise(resolve => setTimeout(resolve, 1200));
+            }
             btn.disabled = false;
+            btn.textContent = '⚡ Run All 5 Demo Scenarios';
         }
-    }
-</script>
+
+        function openCustomModal() {
+            document.getElementById('customModal').classList.add('active');
+        }
+
+        function closeCustomModal() {
+            document.getElementById('customModal').classList.remove('active');
+        }
+
+        async function submitCustomScenario() {
+            const email_body = document.getElementById('customEmailBody').value.trim();
+            const vendor = document.getElementById('customVendor').value.trim();
+            const amount = parseFloat(document.getElementById('customAmount').value);
+            const txn_id = document.getElementById('customTxnId').value.trim() || 'CUSTOM-001';
+
+            if (!email_body || !vendor || isNaN(amount)) {
+                showToast('Please fill all fields correctly.');
+                return;
+            }
+
+            closeCustomModal();
+            const payload = { email_body, vendor, amount, transaction_id: txn_id };
+            const start = Date.now();
+            try {
+                const res = await fetch(`${API_BASE}/api/analyze/custom`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || `API error ${res.status}`);
+                }
+                const data = await res.json();
+                const latency = Date.now() - start;
+                const breakdown = {
+                    email_tone: data.audit_agent?.email_tone_risk || 0,
+                    iban_change: data.audit_agent?.iban_change_risk || 0,
+                    timing: data.audit_agent?.timing_risk || 0
+                };
+                const explanation = data.audit_agent?.explanation || data.threat_hunting?.explanation || '';
+                addResultRow(
+                    data.transaction_id || txn_id,
+                    data.vendor || vendor,
+                    data.amount || amount,
+                    data.consensus_decision || data.decision,
+                    data.risk_score ?? 0,
+                    breakdown,
+                    explanation,
+                    latency
+                );
+                updateStats(data.consensus_decision || data.decision, data.amount || amount, latency);
+            } catch (error) {
+                showToast(`Custom scenario failed: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        document.getElementById('customModal').addEventListener('click', function(e) {
+            if (e.target === this) closeCustomModal();
+        });
+    </script>
 </body>
 </html>
