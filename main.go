@@ -637,9 +637,19 @@ func main() {
 		}
 	})
 
-	// Static files — registered as catch-all (lowest priority)
+	// Static files — serve frontend assets without blocking API routes
 	fs := http.FileServer(http.Dir("frontend"))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only serve files that actually exist in the frontend directory
+		// Prevent the file server from shadowing API/health routes
+		path := r.URL.Path
+		if path != "/" && path != "/index.html" {
+			// Check if the file exists in frontend/
+			if _, err := os.Stat("frontend" + path); os.IsNotExist(err) {
+				http.NotFound(w, r)
+				return
+			}
+		}
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
