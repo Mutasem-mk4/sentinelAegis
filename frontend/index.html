@@ -2,446 +2,508 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>SentinelAegis SOC — Real-time Monitoring</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SentinelAegis SOC Dashboard</title>
     <style>
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        :root{
-            --bg:#070a13;--bg-card:#0f172a;--bg-alt:#1e293b;
-            --blue:#3b82f6;--red:#ef4444;--yellow:#f59e0b;--green:#10b981;
-            --t1:#f1f5f9;--t2:#94a3b8;--border:#1e293b;
-            --grad:linear-gradient(135deg,#3b82f6,#6366f1,#8b5cf6);
-            --glow:rgba(59,130,246,0.25);
-            --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: #161b22;
+            --border-color: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-yellow: #d29922;
+            --accent-red: #f85149;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
         }
-        body{font-family:var(--font);background:var(--bg);color:var(--t1);line-height:1.6;height:100vh;overflow:hidden;display:flex;flex-direction:column}
-        
-        /* ── Header ── */
-        .hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:rgba(15,23,42,.8);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);z-index:100}
-        .hdr-brand{display:flex;align-items:center;gap:12px}
-        .hdr-logo{color:var(--blue);width:32px;height:32px}
-        .hdr-name{font-size:1.2rem;font-weight:800;letter-spacing:-0.02em}
-        .hdr-live{display:flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;background:rgba(16,185,129,.1);color:var(--green);padding:4px 10px;border-radius:99px;border:1px solid rgba(16,185,129,.2)}
-        .hdr-dot{width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
-        .hdr-mon{font-size:.75rem;color:var(--t2);display:flex;align-items:center;gap:6px}
 
-        /* ── Main Layout ── */
-        .main{flex:1;display:grid;grid-template-columns:380px 1fr;gap:1px;background:var(--border);overflow:hidden}
-        .panel{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
-        .panel-hdr{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
-        .panel-title{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t2)}
-        .panel-scroll{flex:1;overflow-y:auto;padding:16px}
-        
-        /* ── Metrics Bar ── */
-        .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 24px;background:var(--bg)}
-        .mcard{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 20px;transition:.2s}
-        .mlbl{font-size:.65rem;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-        .mval{font-size:1.6rem;font-weight:800;font-family:var(--mono)}
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* ── Email Feed ── */
-        .feed-list{display:flex;flex-direction:column;gap:10px}
-        .ecard{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
-        .ecard:hover{border-color:var(--blue);background:rgba(59,130,246,.04)}
-        .ecard.active{border-color:var(--blue);box-shadow:0 0 20px var(--glow);background:rgba(59,130,246,.08)}
-        .ecard-status{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--t2)}
-        .ecard.analyzing .ecard-status{background:var(--blue);animation:scanY 2s infinite}
-        .ecard.halt .ecard-status{background:var(--red)}
-        .ecard.review .ecard-status{background:var(--yellow)}
-        .ecard.approve .ecard-status{background:var(--green)}
-        .ecard-from{font-size:.85rem;font-weight:700;margin-bottom:2px;display:flex;justify-content:space-between}
-        .ecard-sub{font-size:.78rem;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .ecard-meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:.7rem;font-weight:600;color:var(--t2)}
-        
-        /* ── Analysis Panel ── */
-        .empty-state{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--t2);gap:16px}
-        .empty-icon{width:64px;height:64px;opacity:.2}
-        
-        .analysis-view{padding:24px;animation:fadeIn .4s ease}
-        .a-hdr{margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border)}
-        .a-vendor{font-size:1.4rem;font-weight:800;margin-bottom:4px}
-        .a-meta{display:flex;gap:20px;font-size:.8rem;color:var(--t2)}
-        .a-body{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;font-size:.85rem;line-height:1.6;color:var(--t2);margin:20px 0;max-height:140px;overflow-y:auto;white-space:pre-wrap}
-        
-        .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
-        .acard{background:var(--bg-card);border:2px solid var(--border);border-radius:12px;padding:18px;min-height:200px;transition:.5s;opacity:0;transform:translateY(10px)}
-        .acard.show{opacity:1;transform:translateY(0)}
-        .acard.r-HIGH{border-color:var(--red);box-shadow:0 0 20px rgba(239,68,68,.15)}
-        .acard.r-MEDIUM{border-color:var(--yellow)}
-        .acard.r-LOW{border-color:var(--green)}
-        .ahdr{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-        .aicon{font-size:1.2rem}
-        .atitle{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
-        .arisk{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:800;margin-top:4px}
-        .aexpl{font-size:.72rem;color:var(--t2);margin-top:12px;line-height:1.5;font-style:italic}
-        .aflags{list-style:none;margin-top:10px;font-size:.7rem;color:var(--t2)}
-        .aflags li{padding:2px 0 2px 14px;position:relative}
-        .aflags li::before{content:'•';position:absolute;left:0;color:var(--blue)}
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
 
-        .con-banner{border-radius:12px;padding:24px;display:flex;align-items:center;gap:24px;margin-top:20px;opacity:0;transform:scale(.95);transition:.5s}
-        .con-banner.show{opacity:1;transform:scale(1)}
-        .con-banner.HALT{background:rgba(239,68,68,.08);border:2px solid var(--red);box-shadow:0 0 40px rgba(239,68,68,.2)}
-        .con-banner.REVIEW{background:rgba(245,158,11,.08);border:2px solid var(--yellow)}
-        .con-banner.APPROVE{background:rgba(16,185,129,.08);border:2px solid var(--green)}
-        .con-info{flex:1}
-        .con-dec{font-size:1.4rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-        .con-expl{font-size:.85rem;color:var(--t2)}
-        .con-score{font-family:var(--mono);font-size:2.8rem;font-weight:900}
-
-        /* ── Buttons & UI ── */
-        .btn-demo{width:100%;margin-top:auto;padding:12px;background:var(--bg-alt);border:1px solid var(--border);color:var(--t1);border-radius:8px;font-weight:700;font-size:.75rem;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px}
-        .btn-demo:hover{background:var(--border)}
+        /* ── HEADER ── */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 24px;
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            height: 60px;
+        }
+        .logo-area { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.25rem; letter-spacing: -0.5px; }
+        .logo-icon { color: var(--accent-blue); font-size: 1.5rem; }
         
-        .badge-live{background:var(--red);color:#fff;font-size:.6rem;padding:1px 4px;border-radius:3px;margin-left:6px;vertical-align:middle}
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background-color: rgba(63, 185, 80, 0.1);
+            color: var(--accent-green);
+            border: 1px solid rgba(63, 185, 80, 0.2);
+            transition: all 0.3s ease;
+        }
+        .status-badge.disconnected {
+            background-color: rgba(248, 81, 73, 0.1);
+            color: var(--accent-red);
+            border-color: rgba(248, 81, 73, 0.2);
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background-color: currentColor; }
+        .status-badge:not(.disconnected) .status-dot { animation: pulse 2s infinite; }
 
-        /* ── Animations ── */
-        @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.2)}}
-        @keyframes scanY{0%{top:0;height:0}50%{top:0;height:100%}100%{top:100%;height:0}}
-        @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes flashRed{0%,100%{background:transparent}50%{background:rgba(239,68,68,.15)}}
-        .flash-red{animation:flashRed .4s 2}
+        /* ── STATS BAR ── */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .stat-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .stat-card:hover { border-color: var(--accent-blue); transform: translateY(-2px); }
+        .stat-title { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-value { font-family: var(--font-mono); font-size: 1.75rem; font-weight: 700; color: #fff; transition: color 0.3s; }
+        .stat-value.flash { color: var(--accent-green); }
 
-        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+        /* ── MAIN LAYOUT ── */
+        .main-content {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 16px;
+            padding: 16px 24px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── LEFT PANEL (FEED & CONTROLS) ── */
+        .left-panel { display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+        
+        .controls {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .btn {
+            padding: 10px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #21262d;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+        }
+        .btn:hover:not(:disabled) { background-color: #30363d; border-color: #8b949e; }
+        .btn-primary { background-color: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+        .btn-primary:hover:not(:disabled) { background-color: #1f6feb; border-color: #1f6feb; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .feed-panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border-color); font-weight: 600; font-size: 0.9rem; }
+        .feed-list { padding: 12px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .empty-feed { color: var(--text-secondary); text-align: center; margin-top: 40px; font-size: 0.85rem; font-style: italic; }
+
+        .feed-item {
+            padding: 10px;
+            border-radius: 6px;
+            background-color: #21262d;
+            border: 1px solid var(--border-color);
+            font-size: 0.8rem;
+            animation: slideIn 0.3s ease-out;
+            border-left: 3px solid var(--border-color);
+        }
+        .feed-item.analyzing { border-left-color: var(--accent-blue); }
+        .feed-item.HALT { border-left-color: var(--accent-red); background-color: rgba(248, 81, 73, 0.05); }
+        .feed-item.REVIEW { border-left-color: var(--accent-yellow); }
+        .feed-item.APPROVE { border-left-color: var(--accent-green); }
+
+        /* ── RIGHT PANEL (TABLE) ── */
+        .right-panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .table-container { flex: 1; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th {
+            position: sticky; top: 0; background-color: #161b22; z-index: 10;
+            padding: 12px 16px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        td { padding: 14px 16px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; vertical-align: top; }
+        
+        .row-main:hover { background-color: rgba(255,255,255,0.02); cursor: pointer; }
+        .row-details { background-color: #0d1117; display: none; }
+        .row-details.open { display: table-row; }
+        
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+        .badge.HALT { background: rgba(248,81,73,0.15); color: var(--accent-red); border: 1px solid rgba(248,81,73,0.3); }
+        .badge.REVIEW { background: rgba(210,153,34,0.15); color: var(--accent-yellow); border: 1px solid rgba(210,153,34,0.3); }
+        .badge.APPROVE { background: rgba(63,185,80,0.15); color: var(--accent-green); border: 1px solid rgba(63,185,80,0.3); }
+
+        .agent-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 16px 0; }
+        .agent-card { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; }
+        .agent-title { font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; }
+        .agent-explanation { font-size: 0.8rem; color: var(--text-primary); margin-top: 8px; font-style: italic; }
+
+        /* ── MODALS & TOASTS ── */
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.open { display: flex; }
+        .modal-content { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; width: 500px; padding: 24px; }
+        .modal-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; }
+        .form-group input, .form-group textarea { width: 100%; background: #0d1117; border: 1px solid var(--border-color); color: #c9d1d9; padding: 8px 12px; border-radius: 6px; font-family: var(--font-family); }
+        .form-group textarea { height: 100px; resize: vertical; }
+
+        #toast { position: fixed; bottom: 24px; right: 24px; background: var(--accent-red); color: white; padding: 12px 24px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; transform: translateY(100px); opacity: 0; transition: 0.3s; z-index: 9999; }
+        #toast.show { transform: translateY(0); opacity: 1; }
+
+        @keyframes pulse { 0% { opacity: 1; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.4); } 70% { opacity: 0.5; box-shadow: 0 0 0 6px rgba(63, 185, 80, 0); } 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        
+        .flash-red-screen { animation: flashRed 0.5s ease-out; }
+        @keyframes flashRed { 0% { box-shadow: inset 0 0 100px rgba(248,81,73,0.5); } 100% { box-shadow: inset 0 0 0 transparent; } }
     </style>
 </head>
 <body>
-    <header class="hdr">
-        <div class="hdr-brand">
-            <svg class="hdr-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            <div>
-                <div class="hdr-name">SentinelAegis <span class="badge-live">SOC</span></div>
-                <div class="hdr-mon" id="mon-addr">Monitoring inbox: sentinel-demo@gmail.com</div>
-            </div>
-        </div>
-        <div style="display:flex;gap:20px;align-items:center">
-            <div class="hdr-live"><div class="hdr-dot"></div>LIVE MONITORING</div>
-            <div class="hdr-mon" style="font-family:var(--mono)">3 Agents · Gemini 1.5 Pro</div>
-        </div>
-    </header>
 
-    <div class="metrics">
-        <div class="mcard"><div class="mlbl">Emails Analyzed</div><div class="mval" id="m-count">0</div></div>
-        <div class="mcard"><div class="mlbl">Amount Screened</div><div class="mval" id="m-amount">$0</div></div>
-        <div class="mcard"><div class="mlbl">Threats Blocked</div><div class="mval" id="m-threats">0</div></div>
-        <div class="mcard"><div class="mlbl">Avg Response</div><div class="mval" id="m-latency">—</div></div>
+<header>
+    <div class="logo-area">
+        <span class="logo-icon">🛡️</span> SentinelAegis SOC
     </div>
+    <div class="status-badge disconnected" id="conn-status">
+        <div class="status-dot"></div> <span id="conn-text">DISCONNECTED</span>
+    </div>
+</header>
 
-    <div class="main">
-        <div class="panel">
-            <div class="panel-hdr">
-                <div class="panel-title">📨 Live Email Feed</div>
-                <div id="conn-status" style="font-size:.65rem;font-weight:700;color:var(--green)">CONNECTED</div>
-            </div>
-            <div class="panel-scroll">
-                <div class="feed-list" id="email-feed">
-                    <!-- Emails scroll in here -->
-                </div>
-            </div>
-            <div style="padding:16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px">
-                <button class="btn-demo" onclick="runAllScenarios()" id="btn-all" style="background:linear-gradient(135deg,#3b82f6,#6366f1);border:none">🚀 Run All 5 Demo Scenarios</button>
-                <button class="btn-demo" onclick="runDemo()">🎭 Trigger Custom BEC Scenario</button>
-            </div>
+<div class="stats-bar">
+    <div class="stat-card">
+        <div class="stat-title">Emails Analyzed</div>
+        <div class="stat-value" id="stat-count">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-title">Amount Screened</div>
+        <div class="stat-value" id="stat-amount">$0</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-title">Threats Blocked</div>
+        <div class="stat-value" id="stat-threats">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-title">Avg Response</div>
+        <div class="stat-value" id="stat-latency">0 ms</div>
+    </div>
+</div>
+
+<div class="main-content">
+    <div class="left-panel">
+        <div class="controls">
+            <button class="btn btn-primary" id="btn-run-all" onclick="runAllScenarios()">🚀 Run All 5 Demo Scenarios</button>
+            <button class="btn" onclick="openCustomModal()">🎭 Trigger Custom BEC Scenario</button>
         </div>
-
-        <div class="panel" id="analysis-panel">
-            <div class="empty-state">
-                <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="12" r="3"/></svg>
-                <div style="text-align:center">
-                    <div style="font-weight:700;margin-bottom:4px">Awaiting incoming data...</div>
-                    <div style="font-size:.8rem;opacity:.6">System is monitoring for suspicious BEC activity</div>
-                </div>
+        
+        <div class="feed-panel">
+            <div class="panel-header">📨 Real-time Mail Ingestion</div>
+            <div class="feed-list" id="feed-list">
+                <div class="empty-feed" id="empty-feed">Awaiting incoming data...</div>
             </div>
         </div>
     </div>
 
-    <script>
-        const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
-        let analyses=[],stats={count:0,amount:0,threats:0,latency:0};
+    <div class="right-panel">
+        <div class="panel-header">🚨 Consensus Ledger</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Transaction ID</th>
+                        <th>Vendor</th>
+                        <th>Amount</th>
+                        <th>Consensus</th>
+                        <th>Risk Score</th>
+                        <th>Latency</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Rows appended dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-        // ── Real-time Connection (SSE) ──
-        function initSSE() {
-            const ev = new EventSource('/api/stream');
-            const status = $('#conn-status');
+<!-- Custom Scenario Modal -->
+<div class="modal" id="custom-modal">
+    <div class="modal-content">
+        <div class="modal-title">Trigger Custom Analysis</div>
+        <div class="form-group">
+            <label>Transaction ID</label>
+            <input type="text" id="custom-tx" value="TXN-999">
+        </div>
+        <div class="form-group">
+            <label>Vendor</label>
+            <input type="text" id="custom-vendor" value="Acme Corp">
+        </div>
+        <div class="form-group">
+            <label>Amount (USD)</label>
+            <input type="number" id="custom-amount" value="500000">
+        </div>
+        <div class="form-group">
+            <label>Email Body</label>
+            <textarea id="custom-body">URGENT: Please process this invoice to our new banking details immediately.</textarea>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top: 20px;">
+            <button class="btn" onclick="closeCustomModal()">Cancel</button>
+            <button class="btn btn-primary" id="btn-submit-custom" onclick="submitCustomScenario()">Submit Analysis</button>
+        </div>
+    </div>
+</div>
 
-            ev.onmessage = (e) => {
-                const data = JSON.parse(e.data);
-                handleEvent(data);
-            };
+<div id="toast">Error occurred</div>
 
-            ev.onerror = () => {
-                status.textContent = 'RECONNECTING...';
-                status.style.color = 'var(--yellow)';
-            };
+<script>
+    let stats = { count: 0, amount: 0, threats: 0, totalLatency: 0 };
+    const API_BASE = '';
 
-            ev.onopen = () => {
-                status.textContent = 'CONNECTED';
-                status.style.color = 'var(--green)';
-            };
-        }
-
-        function handleEvent(ev) {
-            if (ev.event_type === 'email_received') {
-                addEmailToFeed(ev.email, 'analyzing');
-            } else if (ev.event_type === 'consensus') {
-                updateEmailInFeed(ev.email.message_id, ev.consensus.decision);
-                updateMetrics(ev);
-                // Auto-select and show if it's new
-                showAnalysis(ev);
+    // Initialize Health Check
+    async function checkHealth() {
+        try {
+            const res = await fetch(`${API_BASE}/health`);
+            if (res.ok) {
+                const el = document.getElementById('conn-status');
+                el.classList.remove('disconnected');
+                document.getElementById('conn-text').textContent = 'CONNECTED';
             }
+        } catch (e) {
+            console.warn('Health check failed', e);
         }
+    }
+    checkHealth();
+    setInterval(checkHealth, 10000);
 
-        function addEmailToFeed(email, status) {
-            const feed = $('#email-feed');
-            const id = `feed-${email.message_id}`;
-            if ($( `#${id}`)) return; // Avoid duplicates
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
 
-            const card = document.createElement('div');
-            card.id = id;
-            card.className = `ecard ${status}`;
-            card.innerHTML = `
-                <div class="ecard-status"></div>
-                <div class="ecard-from"><span>${email.from.split('<')[0]}</span><span style="font-family:var(--mono)">${status === 'analyzing' ? '...' : ''}</span></div>
-                <div class="ecard-sub">${email.subject}</div>
-                <div class="ecard-meta"><span>${status.toUpperCase()}</span><span>${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
-            `;
-            card.onclick = () => {
-                const existing = analyses.find(a => a.email.message_id === email.message_id);
-                if (existing) showAnalysis(existing);
-            };
-            feed.prepend(card);
-        }
+    function animateStat(id, newValue, isCurrency = false) {
+        const el = document.getElementById(id);
+        el.textContent = isCurrency ? `$${newValue.toLocaleString()}` : newValue;
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 300);
+    }
 
-        function updateEmailInFeed(msgID, decision) {
-            const card = $(`#feed-${msgID}`);
-            if (!card) return;
-            card.className = `ecard ${decision.toLowerCase()}`;
-            const label = card.querySelector('.ecard-meta span:first-child');
-            const statusIcon = decision === 'HALT' ? '🚨' : decision === 'REVIEW' ? '⚡' : '✅';
-            label.textContent = `${statusIcon} ${decision}`;
-            
+    function updateStats(amount, decision, latency) {
+        stats.count++;
+        stats.amount += amount;
+        if (decision === 'HALT') stats.threats++;
+        stats.totalLatency += latency;
+        
+        animateStat('stat-count', stats.count);
+        animateStat('stat-amount', stats.amount, true);
+        animateStat('stat-threats', stats.threats);
+        animateStat('stat-latency', Math.round(stats.totalLatency / stats.count) + ' ms');
+    }
+
+    function addToFeed(txId, status) {
+        const empty = document.getElementById('empty-feed');
+        if(empty) empty.style.display = 'none';
+        
+        const feed = document.getElementById('feed-list');
+        const item = document.createElement('div');
+        item.className = `feed-item ${status}`;
+        item.id = `feed-${txId}`;
+        item.innerHTML = `<strong>${txId}</strong> - Processing via secure gateway...`;
+        feed.prepend(item);
+    }
+
+    function updateFeed(txId, decision) {
+        const item = document.getElementById(`feed-${txId}`);
+        if(item) {
+            item.className = `feed-item ${decision}`;
+            item.innerHTML = `<strong>${txId}</strong> - Analysis complete: <span class="badge ${decision}">${decision}</span>`;
             if (decision === 'HALT') {
-                card.classList.add('flash-red');
-                playAlert();
+                document.body.classList.remove('flash-red-screen');
+                void document.body.offsetWidth; // trigger reflow
+                document.body.classList.add('flash-red-screen');
             }
         }
+    }
 
-        function showAnalysis(ev) {
-            // Save to local list
-            if (!analyses.find(a => a.email.message_id === ev.email.message_id)) {
-                analyses.push(ev);
-            }
+    function toggleRow(txId) {
+        const details = document.getElementById(`details-${txId}`);
+        if (details) details.classList.toggle('open');
+    }
 
-            // Mark feed card as active
-            $$('.ecard').forEach(c => c.classList.remove('active'));
-            const card = $(`#feed-${ev.email.message_id}`);
-            if (card) card.classList.add('active');
+    function addTableRow(data, amount, vendor) {
+        const tbody = document.getElementById('table-body');
+        const dec = data.consensus.decision;
+        const colorClass = dec === 'HALT' ? 'accent-red' : dec === 'REVIEW' ? 'accent-yellow' : 'accent-green';
+        
+        const row = document.createElement('tr');
+        row.className = 'row-main';
+        row.onclick = () => toggleRow(data.transaction_id);
+        row.innerHTML = `
+            <td><span style="font-family:var(--font-mono)">${data.transaction_id}</span></td>
+            <td>${vendor}</td>
+            <td style="font-family:var(--font-mono)">$${amount.toLocaleString()}</td>
+            <td><span class="badge ${dec}">${dec}</span></td>
+            <td><strong style="color:var(--${colorClass})">${data.consensus.risk_score}</strong>/100</td>
+            <td style="font-family:var(--font-mono); font-size:0.75rem; color:var(--text-secondary)">${data.latency_ms}ms</td>
+        `;
+        
+        const agentsHtml = data.consensus.agent_breakdown.map(a => `
+            <div class="agent-card">
+                <div class="agent-title">${a.agent_name.replace('_', ' ')} · ${a.risk_level} RISK</div>
+                <div style="font-family:var(--font-mono); font-size:1.1rem; color:#fff">${(a.confidence*100).toFixed(0)}% CONFIDENCE</div>
+                <div class="agent-explanation">${a.explanation}</div>
+            </div>
+        `).join('');
 
-            const panel = $('#analysis-panel');
-            const c = ev.consensus;
-            const ag = c.agent_breakdown;
-            const color = c.decision === 'HALT' ? 'var(--red)' : c.decision === 'REVIEW' ? 'var(--yellow)' : 'var(--green)';
-
-            panel.innerHTML = `
-                <div class="analysis-view">
-                    <div class="a-hdr">
-                        <div class="a-vendor">${ev.email.subject}</div>
-                        <div class="a-meta">
-                            <span>From: ${ev.email.from}</span>
-                            <span>Time: ${new Date(ev.timestamp).toLocaleTimeString()}</span>
-                            <span>ID: ${ev.email.message_id.slice(0,8)}</span>
-                        </div>
-                    </div>
-
-                    <div class="agrid">
-                        ${ag.map((a, i) => `
-                            <div class="acard" id="ac-${i}">
-                                <div class="ahdr">
-                                    <div class="aicon">${i===0?'📧':i===1?'🏦':'⏰'}</div>
-                                    <div class="atitle">${a.agent_name.replace('_',' ')}</div>
-                                </div>
-                                <div class="arisk" style="background:rgba(${a.risk_level==='HIGH'?'239,68,68':a.risk_level==='MEDIUM'?'245,158,11':'16,185,129'},.15);color:var(--${a.risk_level==='HIGH'?'red':a.risk_level==='MEDIUM'?'yellow':'green'})">
-                                    ${a.risk_level} RISK
-                                </div>
-                                <div style="font-family:var(--mono);font-size:1.2rem;font-weight:800;margin-top:10px">${(a.confidence*100).toFixed(0)}%</div>
-                                <ul class="aflags">${(a.flags||[]).slice(0,2).map(f=>`<li>${f}</li>`).join('')}</ul>
-                                <div class="aexpl">${a.explanation.split('.')[0]}.</div>
-                            </div>
-                        `).join('')}
-                    </div>
-
-                    <div class="a-body">${ev.email.body}</div>
-
-                    <div class="con-banner ${c.decision}" id="con-banner">
-                        <div class="con-info">
-                            <div class="con-dec" style="color:${color}">${c.decision === 'HALT' ? '🚨 TRANSACTION HALTED' : c.decision === 'REVIEW' ? '⚡ MANUAL REVIEW' : '✅ APPROVED'}</div>
-                            <div class="con-expl">${c.explanation}</div>
-                        </div>
-                        <div class="con-score" style="color:${color}">${c.risk_score}</div>
-                    </div>
+        const detailsRow = document.createElement('tr');
+        detailsRow.id = `details-${data.transaction_id}`;
+        detailsRow.className = 'row-details';
+        detailsRow.innerHTML = `
+            <td colspan="6" style="padding:0">
+                <div style="padding: 16px 24px; border-bottom: 1px solid var(--border-color);">
+                    <div style="font-weight:600; margin-bottom:8px">Consensus Explanation:</div>
+                    <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:16px">${data.consensus.explanation}</div>
+                    <div class="agent-grid">${agentsHtml}</div>
                 </div>
-            `;
+            </td>
+        `;
+        
+        tbody.prepend(detailsRow);
+        tbody.prepend(row);
+    }
 
-            // Sequential reveal
-            setTimeout(() => $('#ac-0').classList.add('show'), 100);
-            setTimeout(() => $('#ac-1').classList.add('show'), 600);
-            setTimeout(() => $('#ac-2').classList.add('show'), 1100);
-            setTimeout(() => $('#con-banner').classList.add('show'), 1600);
-
-            if (c.decision === 'HALT') {
-                document.body.style.boxShadow = 'inset 0 0 100px rgba(239,68,68,.1)';
-                setTimeout(() => document.body.style.boxShadow = 'none', 1000);
-            }
-        }
-
-        function updateMetrics(ev) {
-            stats.count++;
-            stats.latency = ((stats.latency * (stats.count-1)) + ev.latency_ms) / stats.count;
-            if (ev.consensus.decision === 'HALT') stats.threats++;
+    async function analyzeTx(txId, amount, vendor) {
+        addToFeed(txId, 'analyzing');
+        try {
+            const res = await fetch(`${API_BASE}/api/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transaction_id: txId })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
             
-            // Extract amount from email body/subject if possible
-            const amtMatch = ev.email.body.match(/\$([\d,]+)/);
-            if (amtMatch) stats.amount += parseInt(amtMatch[1].replace(/,/g, ''));
-            else stats.amount += 50000;
-
-            animateVal($('#m-count'), stats.count);
-            $('#m-amount').textContent = `$${(stats.amount/1000).toFixed(0)}K`;
-            animateVal($('#m-threats'), stats.threats);
-            $('#m-latency').textContent = `${Math.round(stats.latency)}ms`;
-        }
-
-        function animateVal(el, target) {
-            const start = parseInt(el.textContent) || 0;
-            const dur = 500;
-            const startTime = performance.now();
-            function up(now) {
-                const p = Math.min((now - startTime) / dur, 1);
-                el.textContent = Math.round(start + (target - start) * p);
-                if (p < 1) requestAnimationFrame(up);
-            }
-            requestAnimationFrame(up);
-        }
-
-        function playAlert() {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain); gain.connect(ctx.destination);
-                osc.frequency.value = 440; gain.gain.value = 0.08;
-                osc.start(); osc.stop(ctx.currentTime + 0.2);
-            } catch(e) {}
-        }
-
-        async function runDemo() {
-            // Simulated BEC email for Demo Day backup
-            const demoEmail = {
-                message_id: 'demo-' + Date.now(),
-                from: 'CEO David <ceo@morrison-associates.com>',
-                subject: 'URGENT: Change of Banking Details for Greenfield',
-                body: "Sarah, I'm in back-to-back meetings. We need to update the payment for Greenfield Solutions immediately. Their new IBAN is GB29NWBK60161331926819. Please process the $847,000 transfer ASAP. Do not share this until confirmed.",
-                date: new Date().toISOString()
-            };
+            updateFeed(txId, data.consensus.decision);
+            addTableRow(data, amount, vendor);
+            updateStats(amount, data.consensus.decision, data.latency_ms);
             
-            handleEvent({ event_type: 'email_received', email: demoEmail });
-            
-            // Call actual analysis API to get real Gemini results
-            try {
-                const r = await fetch('/api/analyze/custom', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        email_body: demoEmail.body,
-                        vendor_name: "Greenfield Solutions",
-                        amount: 847000,
-                        current_iban: "GB29NWBK60161331926819",
-                        iban_changed_hours_ago: 2
-                    })
-                });
-                const d = await r.json();
-                handleEvent({
-                    event_type: 'consensus',
-                    email: demoEmail,
-                    consensus: d.consensus,
-                    latency_ms: d.latency_ms,
-                    timestamp: new Date().toISOString()
-                });
-            } catch(e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            showToast(`Analysis failed for ${txId}`);
+            updateFeed(txId, 'ERROR');
+        }
+    }
+
+    async function runAllScenarios() {
+        const btn = document.getElementById('btn-run-all');
+        btn.disabled = true;
+        btn.textContent = '⏳ Processing...';
+        
+        const demos = [
+            { id: 'TXN-001', vendor: 'Global Tech', amount: 1500 },
+            { id: 'TXN-002', vendor: 'Delta Supplies', amount: 125000 },
+            { id: 'TXN-003', vendor: 'Marketing Partners', amount: 12000 },
+            { id: 'TXN-004', vendor: 'Greenfield Solutions', amount: 847000 },
+            { id: 'TXN-005', vendor: 'SecureHost LLC', amount: 450 }
+        ];
+
+        for (const tx of demos) {
+            await analyzeTx(tx.id, tx.amount, tx.vendor);
+            await new Promise(r => setTimeout(r, 1000));
         }
 
-        async function runAllScenarios() {
-            const btn = $('#btn-all');
-            btn.disabled = true;
-            btn.textContent = '⏳ Running 5 scenarios...';
+        btn.disabled = false;
+        btn.textContent = '🚀 Run All 5 Demo Scenarios';
+    }
 
-            // Fetch the 5 demo transactions
-            let txns;
-            try {
-                const r = await fetch('/api/transactions');
-                txns = await r.json();
-            } catch(e) {
-                btn.disabled = false;
-                btn.textContent = '🚀 Run All 5 Demo Scenarios';
-                return;
-            }
+    function openCustomModal() { document.getElementById('custom-modal').classList.add('open'); }
+    function closeCustomModal() { document.getElementById('custom-modal').classList.remove('open'); }
 
-            for (let i = 0; i < txns.length; i++) {
-                const tx = txns[i];
-                btn.textContent = `⏳ Analyzing ${i+1}/5 — ${tx.vendor}...`;
+    async function submitCustomScenario() {
+        const btn = document.getElementById('btn-submit-custom');
+        const txId = document.getElementById('custom-tx').value || 'TXN-CUST';
+        const vendor = document.getElementById('custom-vendor').value || 'Unknown';
+        const amount = parseInt(document.getElementById('custom-amount').value) || 0;
+        const bodyText = document.getElementById('custom-body').value;
 
-                // Show email appearing in feed
-                const fakeEmail = {
-                    message_id: tx.id,
-                    from: tx.email_sender,
-                    subject: tx.email_subject,
-                    body: tx.email_text,
-                    date: new Date().toISOString()
-                };
-                handleEvent({ event_type: 'email_received', email: fakeEmail });
+        btn.disabled = true;
+        closeCustomModal();
+        addToFeed(txId, 'analyzing');
 
-                // Small delay for visual effect
-                await new Promise(r => setTimeout(r, 500));
-
-                // Call actual analysis API
-                try {
-                    const r = await fetch('/api/analyze', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ transaction_id: tx.id })
-                    });
-                    const d = await r.json();
-                    handleEvent({
-                        event_type: 'consensus',
-                        email: fakeEmail,
-                        consensus: d.consensus,
-                        latency_ms: d.latency_ms,
-                        timestamp: new Date().toISOString()
-                    });
-                } catch(e) { console.error(`Analysis failed for ${tx.id}:`, e); }
-
-                // Wait between scenarios for dramatic effect
-                if (i < txns.length - 1) {
-                    await new Promise(r => setTimeout(r, 2500));
-                }
-            }
-
+        try {
+            const res = await fetch(`${API_BASE}/api/analyze/custom`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email_body: bodyText,
+                    vendor_name: vendor,
+                    amount: amount,
+                    current_iban: 'GB29NWBK60161331926819',
+                    iban_changed_hours_ago: 2
+                })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            
+            data.transaction_id = txId; // Ensure ID matches
+            updateFeed(txId, data.consensus.decision);
+            addTableRow(data, amount, vendor);
+            updateStats(amount, data.consensus.decision, data.latency_ms);
+            
+        } catch (e) {
+            console.error(e);
+            showToast(`Custom analysis failed`);
+            updateFeed(txId, 'ERROR');
+        } finally {
             btn.disabled = false;
-            btn.textContent = '🚀 Run All 5 Demo Scenarios';
         }
-
-        async function initStatus() {
-            try {
-                const r = await fetch('/api/status');
-                const s = await r.json();
-                if (s.inbox) $('#mon-addr').textContent = `Monitoring inbox: ${s.inbox}`;
-            } catch(e) {}
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            initSSE();
-            initStatus();
-        });
-    </script>
+    }
+</script>
 </body>
 </html>

@@ -1,127 +1,49 @@
-# SentinelAegis — Demo Video Script (≤5 Minutes)
+# Demo Script: SentinelAegis (4.5 Minutes)
 
-## Pre-Recording Checklist
-- [ ] Cloud Run service is live and responsive
-- [ ] Gemini API key is configured and working
-- [ ] Browser with dashboard tab ready
-- [ ] Screen recording software configured (1080p, 30fps minimum)
-- [ ] Script printed for reference
+**Presenter**: Mutasem Kharma  
+**Goal**: Demonstrate real-time BEC threat detection, multi-agent AI consensus, and immediate actionability for the Antigravity IDE Project Challenge.
 
 ---
 
-## Opening (00:00 – 00:30)
+### [0:00 - 0:45] The Problem (Slide 1-2)
+**Action**: Keep dashboard hidden, show slide deck.
+**Script**:
+"Hello everyone. In 2024, Business Email Compromise (BEC) cost organizations over $2.9 billion globally. Attackers don't hack systems; they hack human trust. They learn communication patterns, wait for the perfect moment, and intercept payments by swapping bank details. Traditional rule-based systems are blind to this context. Today, I'm introducing SentinelAegis—an autonomous SOC platform that uses Google Gemini's multi-agent AI to read the context between the lines and stop BEC before the money leaves the bank."
 
-**[Screen: Title slide with logo]**
+### [0:45 - 1:15] The Architecture (Slide 3)
+**Action**: Switch to Architecture diagram slide.
+**Script**:
+"We built this completely natively in Go, deployed on Cloud Run for zero-latency scaling. When an email or payment request arrives, it doesn't go to one AI model—it fans out to three concurrent specialized agents: an Email Tone agent, an IBAN Change agent, and a Timing Anomaly agent. They evaluate the risk independently, and a Consensus Engine makes a final decision. Let me show you this live."
 
-"Fraud has evolved. It's no longer about stolen passwords or forged checks.
+### [1:15 - 2:30] Live Demo: Automated Scenarios
+**Action**: Switch to browser showing the SentinelAegis Dashboard. Click "Run All 5 Demo Scenarios".
+**Script**:
+"This is our SOC dashboard. I'm going to run a simulation of 5 live transactions hitting our payment gateway right now.
+*(Wait for TXN-001 and TXN-002)*
+"Notice how routine transactions are instantly APPROVED or marked for REVIEW.
+*(TXN-004 halts, screen flashes red)*
+"But look at this one—TXN-004 just triggered a HALT. Let's expand the trace."
+**Action**: Click TXN-004 to expand.
+**Script**:
+"Our system explains exactly *why*. The IBAN was changed just 6 hours ago, and the request came in at 6:47 PM, completely outside this vendor's normal business hours. The Consensus Engine aggregated these HIGH risk signals from the specialized agents and blocked an $847,000 fraudulent transfer, logging the entire audit trail securely."
 
-Modern wire fraud is multi-stage. An attacker compromises a vendor's email, manipulates banking details, and times the payment request to avoid oversight. Each signal looks legitimate in isolation. Together, they cost banks $2.7 billion per year.
+### [2:30 - 3:30] Live Demo: Custom Scenario
+**Action**: Click "Trigger Custom BEC Scenario".
+**Script**:
+"Let's trigger a custom attack live. I'll put in a spoofed email body: 'URGENT: Please process this invoice to our new banking details immediately to avoid contract termination.' I'll set the amount to $500,000."
+**Action**: Submit form, wait for HALT. Expand row.
+**Script**:
+"Within milliseconds, the AI intercepts the social engineering tactics—urgency and secrecy—and cross-references the recent IBAN change. Another half-million dollars saved, with zero human intervention required."
 
-We built SentinelAegis to see what no single system can."
+### [3:30 - 4:15] Security & Compliance (Slide 4)
+**Action**: Switch back to slides (PSD3 compliance).
+**Script**:
+"In FinTech, explainability is not optional; it's the law. SentinelAegis maps directly to upcoming PSD3 compliance requirements. Every single AI decision is fully traceable, securely logged, and generates human-readable explanations. There are no 'black box' rejections here."
 
----
-
-## The Problem (00:30 – 01:15)
-
-**[Screen: Architecture diagram showing 3 silos]**
-
-"Here's the problem: banks rely on single-domain detection.
-
-Email security sees phishing language — but can't see the IBAN was just changed.
-Transaction monitoring sees unusual amounts — but can't read the email that triggered it.
-Behavioral analytics sees after-hours activity — but doesn't know the email said 'do not discuss this with anyone.'
-
-Each system is blind to the others. Attackers exploit this gap."
-
-**[Screen: PSD3 timeline]**
-
-"The EU knows this too. PSD3, expected to be adopted this year, will mandate Verification of Payee and real-time fraud monitoring. Banks that don't adapt face regulatory penalties AND increased fraud liability."
-
----
-
-## The Solution (01:15 – 02:00)
-
-**[Screen: Navigate to live dashboard URL]**
-
-"SentinelAegis uses three independent AI agents, each powered by Google Gemini 1.5 Pro.
-
-Agent one — the Email Tone Analyst — reads the email body for social engineering: urgency, authority exploitation, and isolation tactics.
-
-Agent two — the IBAN Sentinel — checks when the beneficiary's banking details were last changed. A change within 48 hours is a critical BEC indicator.
-
-Agent three — the Timing Analyst — compares when the payment was requested against the vendor's typical payment window. An $847,000 wire at 11 PM? That's suspicious.
-
-All three agents run simultaneously — in parallel, using Go's goroutines. The total analysis time is the slowest agent, not the sum."
+### [4:15 - 4:30] Closing
+**Action**: Final slide.
+**Script**:
+"SentinelAegis transforms passive security monitoring into active, intelligent defense. Thank you to Google and GDGoC for this challenge. I'm ready for your questions."
 
 ---
-
-## Live Demo (02:00 – 03:30)
-
-**[Screen: Dashboard — click "Trigger Demo BEC Scenario"]**
-
-"Let me show you what this looks like in action.
-
-I'm going to trigger a simulated BEC attack. The CEO has apparently emailed the finance team, asking for an urgent $847,000 wire transfer to updated banking details. The email says 'do not discuss this with anyone.'
-
-Watch the three agents analyze simultaneously..."
-
-**[Wait for results to appear sequentially on screen]**
-
-"Email Tone Agent: HIGH risk — it detected urgency pressure, authority exploitation, and isolation tactics.
-
-IBAN Change Agent: HIGH risk — the beneficiary's banking details were changed only 2 hours ago. That's within the critical 48-hour window.
-
-Timing Agent: the request came outside normal business hours.
-
-Now the consensus engine votes. Two out of three agents flagged HIGH risk — that crosses the threshold. The verdict: HALT. Transaction blocked. Risk score: 92 out of 100."
-
-**[Point to the red HALT banner]**
-
-"$847,000 saved. In under 4 seconds."
-
----
-
-## Technical Depth (03:30 – 04:15)
-
-**[Screen: Show the API response JSON or project structure]**
-
-"Let me show you what's under the hood.
-
-The entire backend is written in Go 1.22 using the standard library only — zero external frameworks. The Docker image is 15 megabytes.
-
-Each agent calls the Gemini 1.5 Pro API with specialized system prompts. If Gemini is unavailable, deterministic rule-based fallbacks activate silently. The system never crashes.
-
-The consensus engine uses a weighted scoring formula. HIGH counts for 40 points, MEDIUM for 20, plus a confidence-weighted component. Two or more HIGH flags trigger automatic HALT.
-
-We have 16 passing tests, including table-driven consensus tests, agent-level tests, and performance benchmarks. The consensus engine runs in 871 nanoseconds."
-
----
-
-## Closing (04:15 – 05:00)
-
-**[Screen: Architecture diagram + PSD3 compliance table]**
-
-"SentinelAegis isn't just a prototype. The architecture is designed for production scale.
-
-Cloud Run auto-scales horizontally. Each analysis costs about 2 cents. At a million transactions per month, that's $20,000 — less than the cost of a single successful BEC attack.
-
-And because we built this with PSD3 compliance in mind, banks adopting SentinelAegis won't just detect fraud better — they'll meet the regulatory requirements before enforcement begins.
-
-We're not just detecting fraud. We're architecting trust for the Open Banking era.
-
-This is SentinelAegis. Built in 10 days on Antigravity IDE, powered by Google Gemini, deployed on Cloud Run."
-
-**[Screen: Final title slide with team names and URLs]**
-
----
-
-## Key Timestamps
-| Time | Content | Visual |
-|---|---|---|
-| 0:00 | Hook — fraud has evolved | Title slide |
-| 0:30 | Problem — silo blindness | Architecture gap diagram |
-| 1:15 | Solution — 3 agents, 1 consensus | Dashboard overview |
-| 2:00 | Live demo — BEC attack | Dashboard in action |
-| 3:30 | Technical depth — code + tests | Project structure / JSON |
-| 4:15 | Scalability + PSD3 | Compliance table |
-| 4:45 | Call to action | Final slide |
+*Pro-tip for demo: Ensure Cloud Run container is warm before starting to avoid cold-start latency on TXN-001.*

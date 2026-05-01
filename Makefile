@@ -35,6 +35,11 @@ cover: ## Generate test coverage report
 	$(GO) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
+test-coverage: ## Run tests with coverage and print to terminal
+	@echo "Running tests with coverage..."
+	$(GO) test ./... -coverprofile=coverage.out
+	$(GO) tool cover -func=coverage.out
+
 ## ── Code Quality ───────────────────────────────────────
 
 fmt: ## Format all Go source files
